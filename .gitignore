@@ -1,0 +1,20 @@
+# Go build/test caches (created locally only)
+.gocache/
+.gomodcache/
+
+# Go and Wails build output
+build/bin/
+*.exe
+*.test
+*.prof
+
+# Frontend dependencies and generated bundle
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

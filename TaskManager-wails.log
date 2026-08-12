@@ -1,0 +1,95 @@
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+DEBUG | Waiting for frontend DevServer 'http://localhost:5173/' to be ready
+ERROR | Timeout waiting for frontend DevServer
+INFO  | Serving assets from frontend DevServer URL: http://localhost:5173/
+DEBUG | WebView2 Runtime Version '151.0.4129.78' installed. Minimum version required: 94.0.992.31.
+DEBUG | [DevWebServer] Serving DevServer at http://localhost:34115
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] File '.' not found, serving '/' by AssetHandler
+DEBUG | [ExternalAssetHandler] Loading 'http://localhost:5173/'
+ERROR | [ExternalAssetHandler] Proxy error: dial tcp [::1]:5173: connectex: No connection could be made because the target machine actively refused it.
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] File '.' not found, serving '/' by AssetHandler
+DEBUG | [ExternalAssetHandler] Loading 'http://localhost:5173/'
+ERROR | [ExternalAssetHandler] Proxy error: dial tcp [::1]:5173: connectex: No connection could be made because the target machine actively refused it.
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] File '.' not found, serving '/' by AssetHandler
+DEBUG | [ExternalAssetHandler] Loading 'http://localhost:5173/'
+ERROR | [ExternalAssetHandler] Proxy error: dial tcp [::1]:5173: connectex: No connection could be made because the target machine actively refused it.
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] File '.' not found, serving '/' by AssetHandler
+DEBUG | [ExternalAssetHandler] Loading 'http://localhost:5173/'
+ERROR | [ExternalAssetHandler] Proxy error: dial tcp [::1]:5173: connectex: No connection could be made because the target machine actively refused it.
+DEBUG | WebView2 Runtime Version '151.0.4129.78' installed. Minimum version required: 94.0.992.31.
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] Handling request '/assets/index.d6295691.js' (file='assets/index.d6295691.js')
+DEBUG | [AssetHandler] Handling request '/assets/index.d7871d1d.css' (file='assets/index.d7871d1d.css')
+DEBUG | [AssetHandler] Handling request '/favicon.ico' (file='favicon.ico')
+DEBUG | WebView2 Runtime Version '151.0.4129.78' installed. Minimum version required: 94.0.992.31.
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] Handling request '/assets/index.8f41ecc7.js' (file='assets/index.8f41ecc7.js')
+DEBUG | [AssetHandler] Handling request '/assets/index.9712d723.css' (file='assets/index.9712d723.css')
+DEBUG | [AssetHandler] Handling request '/favicon.ico' (file='favicon.ico')
+DEBUG | WebView2 Runtime Version '151.0.4129.78' installed. Minimum version required: 94.0.992.31.
+DEBUG | [AssetHandler] Handling request '/' (file='.')
+DEBUG | [AssetHandler] Handling request '/assets/index.bb58e9e4.js' (file='assets/index.bb58e9e4.js')
+DEBUG | [AssetHandler] Handling request '/assets/index.9712d723.css' (file='assets/index.9712d723.css')
+DEBUG | [AssetHandler] Handling request '/favicon.ico' (file='favicon.ico')
