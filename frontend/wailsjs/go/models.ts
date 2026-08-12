@@ -15,6 +15,7 @@ export namespace main {
 	    summary: string;
 	    createdAt: string;
 	    updatedAt: string;
+	    completedAt: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Task(source);
@@ -36,6 +37,7 @@ export namespace main {
 	        this.summary = source["summary"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
+	        this.completedAt = source["completedAt"];
 	    }
 	}
 	export class TaskInput {

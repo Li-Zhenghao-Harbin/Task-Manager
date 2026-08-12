@@ -30,6 +30,7 @@ type Task struct {
 	Summary     string `json:"summary"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
+	CompletedAt string `json:"completedAt"`
 }
 
 type TaskInput struct {
@@ -67,8 +68,15 @@ func NewApp() *App { return &App{} }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	// Store beside the EXE when possible so the JSON is obvious and portable.
-	dir, _ := os.Getwd()
+	// Always store beside the executable so the data file stays portable.
+	exePath, err := os.Executable()
+	dir := ""
+	if err == nil {
+		dir = filepath.Dir(exePath)
+	}
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
 	a.dataPath = filepath.Join(dir, "task-manager-data.json")
 	_ = a.load()
 }
@@ -195,6 +203,12 @@ func (a *App) UpdateTaskStatus(id, status string) (Task, error) {
 		return Task{}, fmt.Errorf("任务不存在")
 	}
 	a.tasks[idx].Status, a.tasks[idx].UpdatedAt = status, time.Now().Format(time.RFC3339)
+	if status == "completed" && a.tasks[idx].CompletedAt == "" {
+		a.tasks[idx].CompletedAt = time.Now().Format("2006-01-02")
+	}
+	if status != "completed" {
+		a.tasks[idx].CompletedAt = ""
+	}
 	return a.tasks[idx], a.saveLocked()
 }
 
@@ -207,25 +221,30 @@ func (a *App) validateLocked(input TaskInput, excludeID string) error {
 	if strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.Issuer) == "" || strings.TrimSpace(input.Unit) == "" {
 		return fmt.Errorf("请填写单位、任务名和下发人")
 	}
-	if input.Kind != "main" && input.Kind != "branch" {
+	if input.Kind != "main" && input.Kind != "branch" && input.Kind != "child" {
 		return fmt.Errorf("请选择任务层级")
 	}
 	if input.TaskType != "code" && input.TaskType != "document" && input.TaskType != "support" {
 		return fmt.Errorf("请选择任务类型")
 	}
 	pub, e1 := time.Parse("2006-01-02", input.PublishDate)
-	due, e2 := time.Parse("2006-01-02", input.DueDate)
-	if e1 != nil || e2 != nil {
+	if e1 != nil {
 		return fmt.Errorf("请选择有效的发布日期和截止日期")
 	}
-	if due.Before(pub) {
-		return fmt.Errorf("截止日期不能早于发布日期")
+	if input.DueDate != "" {
+		due, e2 := time.Parse("2006-01-02", input.DueDate)
+		if e2 != nil || due.Before(pub) {
+			return fmt.Errorf("截止日期不能早于发布日期")
+		}
 	}
-	if input.Kind == "main" {
+	if input.Kind == "main" || input.Kind == "branch" {
 		if input.ParentID != "" {
-			return fmt.Errorf("主线任务不可关联父任务")
+			return fmt.Errorf("主线任务和支线任务不可关联父任务")
 		}
 		return nil
+	}
+	if input.Kind != "child" {
+		return fmt.Errorf("请选择任务层级")
 	}
 	if input.ParentID == "" || input.ParentID == excludeID {
 		return fmt.Errorf("请选择所属主线任务")
