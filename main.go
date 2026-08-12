@@ -8,7 +8,6 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -30,9 +29,6 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 244, G: 248, B: 255, A: 1},
-		Logger:           logger.NewFileLogger("TaskManager-wails.log"),
-		LogLevel:         logger.DEBUG,
-		LogLevelProduction: logger.DEBUG,
 		OnStartup:        app.startup,
 		OnDomReady: func(ctx context.Context) {
 			go func() {
