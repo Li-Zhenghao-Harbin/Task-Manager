@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { CreateTask, CreateUnit, ExportData, GetDefaultUnitID, ImportData, ListTasks, ListUnits, SetDefaultUnit, UpdateTask, UpdateTaskStatus, UpdateUnit } from '../wailsjs/go/main/App'
+import appLogo from './assets/task-manager-logo.svg'
 
 type Status = 'in_progress' | 'completed' | 'cancelled'
 type Kind = 'main' | 'branch' | 'child'
@@ -88,7 +89,7 @@ onMounted(() => refresh().catch(error => message.value = String(error)))
 <template>
   <main class="shell">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">✓</span><div><b>Task Manager</b><small>工作任务管理器</small></div></div>
+      <div class="brand"><img class="brand-mark" :src="appLogo" alt="Task Manager"><div><b>Task Manager</b><small>工作任务管理器</small></div></div>
       <p class="side-title">任务概览</p>
       <button v-for="item in [{ id: 'all', label: '全部任务' }, { id: 'in_progress', label: '进行中' }, { id: 'completed', label: '已完成' }, { id: 'cancelled', label: '已取消' }]" :key="item.id" class="nav-item" :class="{ active: section === 'tasks' && status === item.id }" @click="section = 'tasks'; status = item.id as 'all' | Status"><span>{{ item.label }}</span><em>{{ item.id === 'all' ? tasks.length : tasks.filter(task => task.status === item.id).length }}</em></button>
       <p class="side-title menu-divider">产出概览</p>
