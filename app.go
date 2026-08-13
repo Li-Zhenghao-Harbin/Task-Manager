@@ -220,6 +220,9 @@ func (a *App) UpdateTask(task Task) (Task, error) {
 	if task.TaskType == "support" && task.Status == "completed" {
 		task.Output.Supports = 1
 	}
+	if task.TaskType == "support" && task.Status != "completed" {
+		task.Output.Supports = 0
+	}
 	a.tasks[idx] = task
 	return task, a.saveLocked()
 }
@@ -243,6 +246,9 @@ func (a *App) UpdateTaskStatus(id, status string) (Task, error) {
 	}
 	if a.tasks[idx].TaskType == "support" && status == "completed" {
 		a.tasks[idx].Output.Supports = 1
+	}
+	if a.tasks[idx].TaskType == "support" && status != "completed" {
+		a.tasks[idx].Output.Supports = 0
 	}
 	return a.tasks[idx], a.saveLocked()
 }
