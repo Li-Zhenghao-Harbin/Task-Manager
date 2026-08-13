@@ -91,7 +91,7 @@ wails dev
 wails build
 ```
 
-生成的 Windows 可执行文件位于 `build\bin\TaskManager.exe`。
+生成的 Windows 可执行文件位于 `build\bin\Task Manager.exe`。
 
 ## 6. 本地数据说明
 
