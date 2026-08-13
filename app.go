@@ -27,10 +27,21 @@ type Task struct {
 	TaskType    string `json:"taskType"`
 	Status      string `json:"status"`
 	Deliverable string `json:"deliverable"`
-	Summary     string `json:"summary"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 	CompletedAt string `json:"completedAt"`
+	Output      Output `json:"output"`
+}
+
+// Output records the deliverable result and its structured quantity metrics.
+type Output struct {
+	Result            string `json:"result"`
+	NewFeatures       int    `json:"newFeatures"`
+	ModifiedFeatures  int    `json:"modifiedFeatures"`
+	Applications      int    `json:"applications"`
+	NewDocuments      int    `json:"newDocuments"`
+	ModifiedDocuments int    `json:"modifiedDocuments"`
+	Supports          int    `json:"supports"`
 }
 
 type TaskInput struct {
@@ -188,6 +199,27 @@ func (a *App) UpdateTask(task Task) (Task, error) {
 	if !validStatus(task.Status) {
 		task.Status = old.Status
 	}
+	if task.Output.NewFeatures < 0 {
+		task.Output.NewFeatures = 0
+	}
+	if task.Output.ModifiedFeatures < 0 {
+		task.Output.ModifiedFeatures = 0
+	}
+	if task.Output.Applications < 0 {
+		task.Output.Applications = 0
+	}
+	if task.Output.NewDocuments < 0 {
+		task.Output.NewDocuments = 0
+	}
+	if task.Output.ModifiedDocuments < 0 {
+		task.Output.ModifiedDocuments = 0
+	}
+	if task.Output.Supports < 0 {
+		task.Output.Supports = 0
+	}
+	if task.TaskType == "support" && task.Status == "completed" {
+		task.Output.Supports = 1
+	}
 	a.tasks[idx] = task
 	return task, a.saveLocked()
 }
@@ -208,6 +240,9 @@ func (a *App) UpdateTaskStatus(id, status string) (Task, error) {
 	}
 	if status != "completed" {
 		a.tasks[idx].CompletedAt = ""
+	}
+	if a.tasks[idx].TaskType == "support" && status == "completed" {
+		a.tasks[idx].Output.Supports = 1
 	}
 	return a.tasks[idx], a.saveLocked()
 }
