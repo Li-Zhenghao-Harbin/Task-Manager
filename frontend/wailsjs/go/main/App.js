@@ -18,6 +18,10 @@ export function GetDefaultUnitID() {
   return window['go']['main']['App']['GetDefaultUnitID']();
 }
 
+export function GetSettings() {
+  return window['go']['main']['App']['GetSettings']();
+}
+
 export function ImportData() {
   return window['go']['main']['App']['ImportData']();
 }
@@ -32,6 +36,10 @@ export function ListUnits() {
 
 export function SetDefaultUnit(arg1) {
   return window['go']['main']['App']['SetDefaultUnit'](arg1);
+}
+
+export function UpdateSettings(arg1) {
+  return window['go']['main']['App']['UpdateSettings'](arg1);
 }
 
 export function UpdateTask(arg1) {

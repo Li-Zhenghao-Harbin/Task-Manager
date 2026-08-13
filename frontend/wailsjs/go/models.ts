@@ -24,6 +24,20 @@ export namespace main {
 	        this.supports = source["supports"];
 	    }
 	}
+	export class Settings {
+	    backgroundColor: string;
+	    autoStart: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.backgroundColor = source["backgroundColor"];
+	        this.autoStart = source["autoStart"];
+	    }
+	}
 	export class Task {
 	    id: string;
 	    name: string;

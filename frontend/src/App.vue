@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
-import { CreateTask, CreateUnit, ExportData, GetDefaultUnitID, ImportData, ListTasks, ListUnits, SetDefaultUnit, UpdateTask, UpdateTaskStatus, UpdateUnit } from '../wailsjs/go/main/App'
+import { CreateTask, CreateUnit, ExportData, GetDefaultUnitID, GetSettings, ImportData, ListTasks, ListUnits, SetDefaultUnit, UpdateSettings, UpdateTask, UpdateTaskStatus, UpdateUnit } from '../wailsjs/go/main/App'
 import appLogo from './assets/task-manager-logo.svg'
 
 type Status = 'in_progress' | 'completed' | 'cancelled'
@@ -33,6 +33,7 @@ const outputFilter = ref<'all' | TaskType>('all')
 const showCreate = ref(false)
 const showUnits = ref(false)
 const showAbout = ref(false)
+const showSettings = ref(false)
 const message = ref('')
 const newUnit = ref('')
 const query = ref('')
@@ -41,6 +42,7 @@ const kindFilter = ref<'all' | Kind>('all')
 const typeFilter = ref<'all' | TaskType>('all')
 const viewMode = ref<'list' | 'calendar'>('list')
 const calendarMonth = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+const settings = reactive({ backgroundColor: '#f7faff', autoStart: false })
 
 const today = () => new Date().toISOString().slice(0, 10)
 const emptyOutput = (): Output => ({ result: '', newFeatures: 0, modifiedFeatures: 0, applications: 0, newDocuments: 0, modifiedDocuments: 0, supports: 0 })
@@ -75,7 +77,8 @@ function setKind(target: { kind: Kind; parentId: string }, kind: Kind) { target.
 function setSelf(target: { issuer: string }, event: Event) { target.issuer = (event.target as HTMLInputElement).checked ? '本人' : '' }
 function setUnlimited(target: { dueDate: string }, event: Event) { target.dueDate = (event.target as HTMLInputElement).checked ? '' : today() }
 
-async function refresh() { const [taskData, unitData, defaultID] = await Promise.all([ListTasks(), ListUnits(), GetDefaultUnitID()]); tasks.value = ((taskData ?? []) as any[]).map(normalizeTask); units.value = unitData as Unit[]; defaultUnitID.value = defaultID || ''; selected.value = selected.value ? tasks.value.find(task => task.id === selected.value?.id) || null : tasks.value[0] || null }
+function applyBackground() { document.documentElement.style.setProperty('--page-background', settings.backgroundColor) }
+async function refresh() { const [taskData, unitData, defaultID, appSettings] = await Promise.all([ListTasks(), ListUnits(), GetDefaultUnitID(), GetSettings()]); tasks.value = ((taskData ?? []) as any[]).map(normalizeTask); units.value = unitData as Unit[]; defaultUnitID.value = defaultID || ''; Object.assign(settings, appSettings || {}); applyBackground(); selected.value = selected.value ? tasks.value.find(task => task.id === selected.value?.id) || null : tasks.value[0] || null }
 function openCreate() { if (!units.value.length) { showUnits.value = true; message.value = '请先创建一个单位'; return }; draft.unit = units.value.find(unit => unit.id === defaultUnitID.value)?.name || units.value[0].name; showCreate.value = true }
 async function create() { try { const created = await CreateTask({ ...draft }) as any; showCreate.value = false; await refresh(); selected.value = tasks.value.find(task => task.id === created.id) || null; message.value = '任务已创建' } catch (error) { message.value = String(error) } }
 async function save() { if (!selected.value) return; try { await UpdateTask(selected.value as any); await refresh(); message.value = '任务已保存' } catch (error) { message.value = String(error) } }
@@ -83,6 +86,8 @@ async function changeStatus(value: Status) { if (!selected.value) return; await 
 async function addUnit() { try { await CreateUnit(newUnit.value); newUnit.value = ''; await refresh() } catch (error) { message.value = String(error) } }
 async function rename(unit: Unit) { const name = prompt('修改单位名称', unit.name); if (name !== null) { try { await UpdateUnit(unit.id, name); await refresh() } catch (error) { message.value = String(error) } } }
 async function setDefault(id: string) { await SetDefaultUnit(id); await refresh() }
+async function saveSettings() { try { await UpdateSettings({ ...settings }); applyBackground(); showSettings.value = false; message.value = '设置已保存' } catch (error) { message.value = String(error) } }
+function resetBackground() { settings.backgroundColor = '#f7faff'; applyBackground() }
 onMounted(() => refresh().catch(error => message.value = String(error)))
 </script>
 
@@ -95,6 +100,7 @@ onMounted(() => refresh().catch(error => message.value = String(error)))
       <p class="side-title menu-divider">产出概览</p>
       <button v-for="item in outputMenuItems" :key="item.id" class="nav-item" :class="{ active: section === 'output' && outputFilter === item.id }" @click="section = 'output'; outputFilter = item.id"><span>{{ item.label }}</span><em>{{ item.count }}</em></button>
       <button class="nav-item menu-divider" @click="showUnits = true"><span>单位管理</span><em>{{ units.length }}</em></button>
+      <button class="nav-item settings-button" @click="showSettings = true"><span>⚙ 设置</span></button>
       <button class="nav-item about-button" @click="showAbout = true"><span>ⓘ 关于</span></button>
     </aside>
 
@@ -120,6 +126,7 @@ onMounted(() => refresh().catch(error => message.value = String(error)))
     <div v-if="showCreate" class="modal-backdrop"><form class="modal" @submit.prevent="create"><div class="modal-title"><h2>创建任务</h2><button class="close" type="button" @click="showCreate = false">×</button></div><div class="form-grid"><label>单位<select v-model="draft.unit" required><option v-for="unit in units" :key="unit.id" :value="unit.name">{{ unit.name }}</option></select></label><label>任务层级<select :value="draft.kind" @change="setKind(draft, ($event.target as HTMLSelectElement).value as Kind)"><option v-for="(_, key) in kindText" :key="key" :value="key">{{ kindText[key as Kind] }}</option></select></label><label>任务名<input v-model="draft.name" required></label><label>下发人<input v-model="draft.issuer" required :disabled="draft.issuer === '本人'"><span class="inline-toggle"><input type="checkbox" :checked="draft.issuer === '本人'" @change="setSelf(draft, $event)"><b>本人</b></span></label><label v-if="draft.kind === 'child'">所属主线<select v-model="draft.parentId" required><option value="">请选择</option><option v-for="task in mains" :key="task.id" :value="task.id">{{ task.name }}</option></select></label><label>发布日期<input v-model="draft.publishDate" type="date" required></label><label>截止日期<input v-model="draft.dueDate" type="date" :disabled="!draft.dueDate"><span class="inline-toggle"><input type="checkbox" :checked="!draft.dueDate" @change="setUnlimited(draft, $event)"><b>无期限</b></span></label><label>任务类型<select v-model="draft.taskType"><option value="code">代码</option><option value="document">文档</option><option value="support">支持</option></select></label></div><div class="actions"><button type="button" @click="showCreate = false">取消</button><button class="primary">创建任务</button></div></form></div>
     <div v-if="showUnits" class="modal-backdrop"><div class="modal"><div class="modal-title"><h2>单位列表</h2><button class="close" @click="showUnits = false">×</button></div><form class="unit-add" @submit.prevent="addUnit"><input v-model="newUnit" placeholder="输入单位名称"><button class="primary">新增单位</button></form><div class="unit-list"><div v-for="unit in units" :key="unit.id" class="unit-row"><span>{{ unit.name }}</span><em v-if="unit.id === defaultUnitID">默认单位</em><button @click="setDefault(unit.id)">设为默认</button><button @click="rename(unit)">修改</button></div></div></div></div>
     <button v-if="message" class="toast" @click="message = ''">{{ message }}</button>
+    <div v-if="showSettings" class="modal-backdrop"><form class="modal settings-modal" @submit.prevent="saveSettings"><div class="modal-title"><h2>设置</h2><button class="close" type="button" @click="showSettings = false">×</button></div><label class="setting-row"><span><b>主页面背景色</b><small>影响任务与产出主页面背景</small></span><input v-model="settings.backgroundColor" type="color" @input="applyBackground"></label><div class="preset-colors"><button v-for="color in ['#f7faff','#f1f5f9','#f8fafc','#eef6ff','#f5f3ff','#fffaf0']" :key="color" type="button" :style="{ backgroundColor: color }" :class="{ selected: settings.backgroundColor === color }" @click="settings.backgroundColor = color; applyBackground()"></button><button type="button" class="reset-color" @click="resetBackground">恢复默认</button></div><label class="setting-row"><span><b>开机自动启动</b><small>登录 Windows 后自动打开 Task Manager</small></span><input v-model="settings.autoStart" type="checkbox" class="setting-toggle"></label><div class="actions"><button type="button" @click="showSettings = false">取消</button><button class="primary">保存设置</button></div></form></div>
     <div v-if="showAbout" class="modal-backdrop"><div class="modal"><div class="modal-title"><h2>关于</h2><button class="close" @click="showAbout = false">×</button></div><div class="about-grid"><div><small>程序名</small><strong>Task Manager | 工作任务管理器</strong></div><div><small>版本号</small><strong>alpha</strong></div><div><small>作者</small><strong>李正浩</strong></div></div></div></div>
   </main>
 </template>

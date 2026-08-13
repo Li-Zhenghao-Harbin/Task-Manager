@@ -10,6 +10,8 @@ export function ExportData():Promise<void>;
 
 export function GetDefaultUnitID():Promise<string>;
 
+export function GetSettings():Promise<main.Settings>;
+
 export function ImportData():Promise<void>;
 
 export function ListTasks():Promise<Array<main.Task>>;
@@ -17,6 +19,8 @@ export function ListTasks():Promise<Array<main.Task>>;
 export function ListUnits():Promise<Array<main.Unit>>;
 
 export function SetDefaultUnit(arg1:string):Promise<void>;
+
+export function UpdateSettings(arg1:main.Settings):Promise<main.Settings>;
 
 export function UpdateTask(arg1:main.Task):Promise<main.Task>;
 

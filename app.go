@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -61,9 +62,15 @@ type Unit struct {
 }
 
 type DataStore struct {
-	Units         []Unit `json:"units"`
-	DefaultUnitID string `json:"defaultUnitId"`
-	Tasks         []Task `json:"tasks"`
+	Units         []Unit   `json:"units"`
+	DefaultUnitID string   `json:"defaultUnitId"`
+	Tasks         []Task   `json:"tasks"`
+	Settings      Settings `json:"settings"`
+}
+
+type Settings struct {
+	BackgroundColor string `json:"backgroundColor"`
+	AutoStart       bool   `json:"autoStart"`
 }
 
 type App struct {
@@ -71,6 +78,7 @@ type App struct {
 	tasks         []Task
 	units         []Unit
 	defaultUnitID string
+	settings      Settings
 	dataPath      string
 	mu            sync.RWMutex
 }
@@ -113,6 +121,40 @@ func (a *App) ListUnits() []Unit {
 }
 
 func (a *App) GetDefaultUnitID() string { a.mu.RLock(); defer a.mu.RUnlock(); return a.defaultUnitID }
+
+func (a *App) GetSettings() Settings { a.mu.RLock(); defer a.mu.RUnlock(); return a.settings }
+
+func (a *App) UpdateSettings(settings Settings) (Settings, error) {
+	if settings.BackgroundColor == "" {
+		settings.BackgroundColor = "#f7faff"
+	}
+	if len(settings.BackgroundColor) != 7 || settings.BackgroundColor[0] != '#' {
+		return Settings{}, fmt.Errorf("背景色格式无效")
+	}
+	if err := setAutoStart(settings.AutoStart); err != nil {
+		return Settings{}, err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.settings = settings
+	return settings, a.saveLocked()
+}
+
+func setAutoStart(enabled bool) error {
+	const key = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+	if enabled {
+		exePath, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		return exec.Command("reg", "add", key, "/v", "Task Manager", "/t", "REG_SZ", "/d", `"`+exePath+`"`, "/f").Run()
+	}
+	cmd := exec.Command("reg", "delete", key, "/v", "Task Manager", "/f")
+	if err := cmd.Run(); err != nil {
+		return nil
+	}
+	return nil
+}
 
 func (a *App) CreateUnit(name string) (Unit, error) {
 	name = strings.TrimSpace(name)
@@ -318,7 +360,10 @@ func (a *App) load() error {
 	}
 	var store DataStore
 	if err := json.Unmarshal(raw, &store); err == nil && (store.Tasks != nil || store.Units != nil) {
-		a.tasks, a.units, a.defaultUnitID = store.Tasks, store.Units, store.DefaultUnitID
+		a.tasks, a.units, a.defaultUnitID, a.settings = store.Tasks, store.Units, store.DefaultUnitID, store.Settings
+		if a.settings.BackgroundColor == "" {
+			a.settings.BackgroundColor = "#f7faff"
+		}
 		a.migrateUnitsLocked()
 		return nil
 	}
@@ -330,7 +375,7 @@ func (a *App) load() error {
 	return nil
 }
 func (a *App) saveLocked() error {
-	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks}, "", "  ")
+	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks, Settings: a.settings}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -360,7 +405,7 @@ func (a *App) migrateUnitsLocked() {
 
 func (a *App) ExportData() error {
 	a.mu.RLock()
-	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks}, "", "  ")
+	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks, Settings: a.settings}, "", "  ")
 	a.mu.RUnlock()
 	if err != nil {
 		return err
@@ -390,7 +435,10 @@ func (a *App) ImportData() error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.tasks, a.units, a.defaultUnitID = store.Tasks, store.Units, store.DefaultUnitID
+	a.tasks, a.units, a.defaultUnitID, a.settings = store.Tasks, store.Units, store.DefaultUnitID, store.Settings
+	if a.settings.BackgroundColor == "" {
+		a.settings.BackgroundColor = "#f7faff"
+	}
 	a.migrateUnitsLocked()
 	return a.saveLocked()
 }
