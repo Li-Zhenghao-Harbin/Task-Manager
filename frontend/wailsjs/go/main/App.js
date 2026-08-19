@@ -10,6 +10,14 @@ export function CreateUnit(arg1) {
   return window['go']['main']['App']['CreateUnit'](arg1);
 }
 
+export function DeleteTask(arg1) {
+  return window['go']['main']['App']['DeleteTask'](arg1);
+}
+
+export function DeleteUnit(arg1) {
+  return window['go']['main']['App']['DeleteUnit'](arg1);
+}
+
 export function ExportData() {
   return window['go']['main']['App']['ExportData']();
 }

@@ -212,6 +212,34 @@ func (a *App) SetDefaultUnit(id string) error {
 	return fmt.Errorf("单位不存在")
 }
 
+func (a *App) DeleteUnit(id string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	idx := -1
+	for i, unit := range a.units {
+		if unit.ID == id {
+			idx = i
+			for _, task := range a.tasks {
+				if task.Unit == unit.Name {
+					return fmt.Errorf("该单位仍有关联任务，请先处理相关任务")
+				}
+			}
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("单位不存在")
+	}
+	a.units = append(a.units[:idx], a.units[idx+1:]...)
+	if a.defaultUnitID == id {
+		a.defaultUnitID = ""
+		if len(a.units) == 1 {
+			a.defaultUnitID = a.units[0].ID
+		}
+	}
+	return a.saveLocked()
+}
+
 func (a *App) CreateTask(input TaskInput) (Task, error) {
 	if err := a.validate(input, ""); err != nil {
 		return Task{}, err
@@ -222,6 +250,22 @@ func (a *App) CreateTask(input TaskInput) (Task, error) {
 	defer a.mu.Unlock()
 	a.tasks = append(a.tasks, task)
 	return task, a.saveLocked()
+}
+
+func (a *App) DeleteTask(id string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	idx := a.indexOf(id)
+	if idx < 0 {
+		return fmt.Errorf("任务不存在")
+	}
+	for _, task := range a.tasks {
+		if task.ParentID == id {
+			return fmt.Errorf("该任务仍有子任务，请先删除子任务")
+		}
+	}
+	a.tasks = append(a.tasks[:idx], a.tasks[idx+1:]...)
+	return a.saveLocked()
 }
 
 func (a *App) UpdateTask(task Task) (Task, error) {

@@ -6,6 +6,10 @@ export function CreateTask(arg1:main.TaskInput):Promise<main.Task>;
 
 export function CreateUnit(arg1:string):Promise<main.Unit>;
 
+export function DeleteTask(arg1:string):Promise<void>;
+
+export function DeleteUnit(arg1:string):Promise<void>;
+
 export function ExportData():Promise<void>;
 
 export function GetDefaultUnitID():Promise<string>;
