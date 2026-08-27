@@ -5,6 +5,7 @@ export namespace main {
 	    newFeatures: number;
 	    modifiedFeatures: number;
 	    applications: number;
+	    skills: number;
 	    newDocuments: number;
 	    modifiedDocuments: number;
 	    supports: number;
@@ -19,6 +20,7 @@ export namespace main {
 	        this.newFeatures = source["newFeatures"];
 	        this.modifiedFeatures = source["modifiedFeatures"];
 	        this.applications = source["applications"];
+	        this.skills = source["skills"];
 	        this.newDocuments = source["newDocuments"];
 	        this.modifiedDocuments = source["modifiedDocuments"];
 	        this.supports = source["supports"];

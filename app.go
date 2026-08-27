@@ -40,6 +40,7 @@ type Output struct {
 	NewFeatures       int    `json:"newFeatures"`
 	ModifiedFeatures  int    `json:"modifiedFeatures"`
 	Applications      int    `json:"applications"`
+	Skills            int    `json:"skills"`
 	NewDocuments      int    `json:"newDocuments"`
 	ModifiedDocuments int    `json:"modifiedDocuments"`
 	Supports          int    `json:"supports"`
@@ -294,6 +295,9 @@ func (a *App) UpdateTask(task Task) (Task, error) {
 	if task.Output.Applications < 0 {
 		task.Output.Applications = 0
 	}
+	if task.Output.Skills < 0 {
+		task.Output.Skills = 0
+	}
 	if task.Output.NewDocuments < 0 {
 		task.Output.NewDocuments = 0
 	}
@@ -377,7 +381,7 @@ func (a *App) validateLocked(input TaskInput, excludeID string) error {
 		return fmt.Errorf("请选择所属主线任务")
 	}
 	for _, task := range a.tasks {
-		if task.ID == input.ParentID && task.Kind == "main" {
+		if task.ID == input.ParentID && (task.Kind == "main" || task.Kind == "branch") {
 			return nil
 		}
 	}
