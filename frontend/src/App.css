@@ -45,9 +45,18 @@
 .agent-reset{display:none}
 }
 
-/* 详情面板：保存按钮已移除，改为即时保存状态提示 */
+/* 详情面板：修改即时生效，不显示保存状态提示，只有校验失败/出错时才用底部 toast 提示 */
 .heading-status{display:flex;align-items:center;gap:8px}
-.save-state{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;padding:5px 9px;border-radius:99px;background:#f1f5fb}
-.save-state.saving{color:var(--blue);background:var(--blue-50)}
-.save-state.saved{color:#18794e;background:#e9f8f0}
-.save-state.invalid{color:#dc2626;background:#fff5f5;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+
+/* 任务列表：子任务的上级任务不满足当前筛选条件时，仍作为分组头显示，
+   用左侧色条 + 暗色文字标出它是“上下文的上级”，不代表它命中了筛选。 */
+.task-row.context{position:relative;color:var(--muted)}
+.task-row.context::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#dbe6f5}
+.task-row.context .task-name{font-weight:600}
+.task-row.context .date{color:#93a1b6}
+
+/* Agent 详情面板：可用情况下的快捷冷却按钮 */
+.cooldown-row{display:flex;align-items:center;gap:10px;margin:10px 0 4px}
+.cooldown-button{border:1px solid #dbe5f2;background:#f8fbff;color:var(--blue);border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.cooldown-button:hover{background:var(--blue-50);border-color:#bfdbfe}
+.cooldown-row .hint{margin:0}

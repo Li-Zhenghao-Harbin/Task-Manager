@@ -17,9 +17,14 @@
 - **关联关系只有一个事实来源：`Task.AgentID`。** `AgentApp.ProjectIDs` 是派生视图，
   由 `syncAgentProjectsLocked()` 按任务重建。任何改动关系的代码都必须维持这个不变量，
   不要再往 `ProjectIDs` 里直接写数据。`repairAgentLinksLocked()` 在 `load()`/`ImportData()` 里做幂等修复。
-- 右侧详情面板（任务 / Agent）是**即时保存**，没有保存按钮。新增面板字段时不用加保存逻辑，
-  但新字段要进 `taskPayload()` / `agentPayload()` 的签名，否则自动保存不会触发。
+- 右侧详情面板（任务 / Agent）是**即时保存**，没有保存按钮，也**不显示任何保存状态提示**（004 移除）。
+  新增面板字段时不用加保存逻辑，但新字段要进 `taskPayload()` / `agentPayload()` 的签名，否则自动保存不会触发。
   **签名必须排除 `updatedAt`/`createdAt`**，否则会形成保存死循环。
+- 任务列表渲染走 `taskGroups` / `orphanChildren` 两个 computed（004），**不要退回模板里内联过滤**。
+  `taskGroups` 会把「子任务命中筛选但上级未命中」的上级任务作为 `context:true` 分组头带出来，
+  这是「筛进行中要看到已完成上级」的机制；`.task-row.context` 样式刻意不覆盖 background，以保留 `.completed` 绿底。
+- Agent 快捷冷却：`setAgentCooldown(target, hours)` 生成 `YYYY-MM-DDTHH:mm` **本地时间**（对齐后端 `agentResetLayout`，
+  不能用 `toISOString()`）。面板里的按钮一律放在 `<label>` **之外**，避免 label 嵌套 button 导致误触发 checkbox。
 - Agent 通知：`App.notifier` 是可注入字段，测试里替换它避免真弹通知；`notify.go` 里是 Windows 实现。
 
 ## 构建与验证
