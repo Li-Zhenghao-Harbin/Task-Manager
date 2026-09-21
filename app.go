@@ -28,6 +28,8 @@ type Task struct {
 	TaskType    string `json:"taskType"`
 	Status      string `json:"status"`
 	Deliverable string `json:"deliverable"`
+	// AgentID only applies to code tasks; the service clears it for other types.
+	AgentID     string `json:"agentId"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 	CompletedAt string `json:"completedAt"`
@@ -55,6 +57,7 @@ type TaskInput struct {
 	PublishDate string `json:"publishDate"`
 	DueDate     string `json:"dueDate"`
 	TaskType    string `json:"taskType"`
+	AgentID     string `json:"agentId"`
 }
 
 type Unit struct {
@@ -62,11 +65,40 @@ type Unit struct {
 	Name string `json:"name"`
 }
 
+// AgentApp registers one Agent application together with the model it runs.
+// Projects are existing tasks whose type is "code"; there is no separate project entity.
+type AgentApp struct {
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Model      string   `json:"model"`
+	ProjectIDs []string `json:"projectIds"`
+	Available  bool     `json:"available"`
+	// ResetAt uses the datetime-local format (minute precision), e.g. "2026-09-21T17:30".
+	ResetAt   string `json:"resetAt"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type AgentAppInput struct {
+	Name       string   `json:"name"`
+	Model      string   `json:"model"`
+	ProjectIDs []string `json:"projectIds"`
+	Available  bool     `json:"available"`
+	ResetAt    string   `json:"resetAt"`
+}
+
+// agentResetLayout pins the minute precision used by the frontend datetime-local control.
+const agentResetLayout = "2006-01-02T15:04"
+
+// maxAgentProjects caps a single Agent application's project selection.
+const maxAgentProjects = 200
+
 type DataStore struct {
-	Units         []Unit   `json:"units"`
-	DefaultUnitID string   `json:"defaultUnitId"`
-	Tasks         []Task   `json:"tasks"`
-	Settings      Settings `json:"settings"`
+	Units         []Unit     `json:"units"`
+	DefaultUnitID string     `json:"defaultUnitId"`
+	Tasks         []Task     `json:"tasks"`
+	Agents        []AgentApp `json:"agents"`
+	Settings      Settings   `json:"settings"`
 }
 
 type Settings struct {
@@ -78,6 +110,7 @@ type App struct {
 	ctx           context.Context
 	tasks         []Task
 	units         []Unit
+	agents        []AgentApp
 	defaultUnitID string
 	settings      Settings
 	dataPath      string
@@ -99,6 +132,12 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.dataPath = filepath.Join(dir, "task-manager-data.json")
 	_ = a.load()
+	// Restore any Agent application whose reset time already passed while the app was closed.
+	a.mu.Lock()
+	if a.applyAgentResetLocked() {
+		_ = a.saveLocked()
+	}
+	a.mu.Unlock()
 }
 
 func (a *App) ListTasks() []Task {
@@ -241,12 +280,177 @@ func (a *App) DeleteUnit(id string) error {
 	return a.saveLocked()
 }
 
+// ---------- Agent applications ----------
+
+func (a *App) ListAgentApps() []AgentApp {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.applyAgentResetLocked() {
+		_ = a.saveLocked()
+	}
+	items := make([]AgentApp, len(a.agents))
+	copy(items, a.agents)
+	for i := range items {
+		if items[i].ProjectIDs == nil {
+			// Keep projectIds as [] rather than null so the Vue list can iterate safely.
+			items[i].ProjectIDs = []string{}
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+	return items
+}
+
+func (a *App) CreateAgentApp(input AgentAppInput) (AgentApp, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err := a.validateAgentLocked(input); err != nil {
+		return AgentApp{}, err
+	}
+	now := time.Now().Format(time.RFC3339)
+	agent := AgentApp{
+		ID:         uuid.NewString(),
+		Name:       strings.TrimSpace(input.Name),
+		Model:      strings.TrimSpace(input.Model),
+		ProjectIDs: a.normalizeProjectIDs(input.ProjectIDs),
+		Available:  input.Available,
+		ResetAt:    strings.TrimSpace(input.ResetAt),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if agent.Available {
+		agent.ResetAt = ""
+	}
+	a.agents = append(a.agents, agent)
+	return agent, a.saveLocked()
+}
+
+func (a *App) UpdateAgentApp(id string, input AgentAppInput) (AgentApp, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	idx := a.agentIndexOf(id)
+	if idx < 0 {
+		return AgentApp{}, fmt.Errorf("Agent 应用不存在")
+	}
+	if err := a.validateAgentLocked(input); err != nil {
+		return AgentApp{}, err
+	}
+	updated := a.agents[idx]
+	updated.Name = strings.TrimSpace(input.Name)
+	updated.Model = strings.TrimSpace(input.Model)
+	updated.ProjectIDs = a.normalizeProjectIDs(input.ProjectIDs)
+	updated.Available = input.Available
+	updated.ResetAt = strings.TrimSpace(input.ResetAt)
+	if updated.Available {
+		updated.ResetAt = ""
+	}
+	updated.UpdatedAt = time.Now().Format(time.RFC3339)
+	a.agents[idx] = updated
+	return updated, a.saveLocked()
+}
+
+func (a *App) DeleteAgentApp(id string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	idx := a.agentIndexOf(id)
+	if idx < 0 {
+		return fmt.Errorf("Agent 应用不存在")
+	}
+	a.agents = append(a.agents[:idx], a.agents[idx+1:]...)
+	// Drop references held by tasks so no task points at a deleted Agent.
+	for i := range a.tasks {
+		if a.tasks[i].AgentID == id {
+			a.tasks[i].AgentID = ""
+			a.tasks[i].UpdatedAt = time.Now().Format(time.RFC3339)
+		}
+	}
+	return a.saveLocked()
+}
+
+func (a *App) agentIndexOf(id string) int {
+	for i := range a.agents {
+		if a.agents[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *App) agentExistsLocked(id string) bool { return a.agentIndexOf(id) >= 0 }
+
+// normalizeProjectIDs removes blanks and duplicates while preserving the user's order.
+func (a *App) normalizeProjectIDs(ids []string) []string {
+	result := make([]string, 0, len(ids))
+	seen := map[string]bool{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result = append(result, id)
+		if len(result) >= maxAgentProjects {
+			break
+		}
+	}
+	return result
+}
+
+func (a *App) validateAgentLocked(input AgentAppInput) error {
+	if strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.Model) == "" {
+		return fmt.Errorf("请填写应用名和模型名")
+	}
+	if reset := strings.TrimSpace(input.ResetAt); reset != "" {
+		if _, err := time.ParseInLocation(agentResetLayout, reset, time.Local); err != nil {
+			return fmt.Errorf("下次重置时间格式无效")
+		}
+	}
+	for _, id := range a.normalizeProjectIDs(input.ProjectIDs) {
+		found := false
+		for i := range a.tasks {
+			// Associated projects must be tasks of type "code".
+			if a.tasks[i].ID == id && a.tasks[i].TaskType == "code" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("关联项目必须是代码类型的任务")
+		}
+	}
+	return nil
+}
+
+// applyAgentResetLocked restores availability once the reset time has passed and reports
+// whether anything changed, so the caller can decide to persist.
+func (a *App) applyAgentResetLocked() bool {
+	now := time.Now()
+	changed := false
+	for i := range a.agents {
+		if a.agents[i].Available || strings.TrimSpace(a.agents[i].ResetAt) == "" {
+			continue
+		}
+		reset, err := time.ParseInLocation(agentResetLayout, a.agents[i].ResetAt, time.Local)
+		if err != nil || now.Before(reset) {
+			continue
+		}
+		a.agents[i].Available = true
+		a.agents[i].ResetAt = ""
+		a.agents[i].UpdatedAt = now.Format(time.RFC3339)
+		changed = true
+	}
+	return changed
+}
+
 func (a *App) CreateTask(input TaskInput) (Task, error) {
 	if err := a.validate(input, ""); err != nil {
 		return Task{}, err
 	}
 	now := time.Now().Format(time.RFC3339)
-	task := Task{ID: uuid.NewString(), Name: strings.TrimSpace(input.Name), Kind: input.Kind, ParentID: input.ParentID, Issuer: strings.TrimSpace(input.Issuer), Unit: strings.TrimSpace(input.Unit), PublishDate: input.PublishDate, DueDate: input.DueDate, TaskType: input.TaskType, Status: "in_progress", CreatedAt: now, UpdatedAt: now}
+	task := Task{ID: uuid.NewString(), Name: strings.TrimSpace(input.Name), Kind: input.Kind, ParentID: input.ParentID, Issuer: strings.TrimSpace(input.Issuer), Unit: strings.TrimSpace(input.Unit), PublishDate: input.PublishDate, DueDate: input.DueDate, TaskType: input.TaskType, AgentID: input.AgentID, Status: "in_progress", CreatedAt: now, UpdatedAt: now}
+	if task.TaskType != "code" {
+		// Only code tasks may carry an Agent association.
+		task.AgentID = ""
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.tasks = append(a.tasks, task)
@@ -266,6 +470,16 @@ func (a *App) DeleteTask(id string) error {
 		}
 	}
 	a.tasks = append(a.tasks[:idx], a.tasks[idx+1:]...)
+	// Detach the deleted task from every Agent application's project list.
+	for i := range a.agents {
+		kept := a.agents[i].ProjectIDs[:0]
+		for _, projectID := range a.agents[i].ProjectIDs {
+			if projectID != "" && projectID != id {
+				kept = append(kept, projectID)
+			}
+		}
+		a.agents[i].ProjectIDs = kept
+	}
 	return a.saveLocked()
 }
 
@@ -276,13 +490,17 @@ func (a *App) UpdateTask(task Task) (Task, error) {
 	if idx < 0 {
 		return Task{}, fmt.Errorf("任务不存在")
 	}
-	input := TaskInput{Name: task.Name, Kind: task.Kind, ParentID: task.ParentID, Issuer: task.Issuer, Unit: task.Unit, PublishDate: task.PublishDate, DueDate: task.DueDate, TaskType: task.TaskType}
+	input := TaskInput{Name: task.Name, Kind: task.Kind, ParentID: task.ParentID, Issuer: task.Issuer, Unit: task.Unit, PublishDate: task.PublishDate, DueDate: task.DueDate, TaskType: task.TaskType, AgentID: task.AgentID}
 	if err := a.validateLocked(input, task.ID); err != nil {
 		return Task{}, err
 	}
 	old := a.tasks[idx]
 	task.Name, task.Issuer = strings.TrimSpace(task.Name), strings.TrimSpace(task.Issuer)
 	task.CreatedAt, task.UpdatedAt = old.CreatedAt, time.Now().Format(time.RFC3339)
+	if task.TaskType != "code" {
+		// Only code tasks may carry an Agent association.
+		task.AgentID = ""
+	}
 	if !validStatus(task.Status) {
 		task.Status = old.Status
 	}
@@ -358,6 +576,11 @@ func (a *App) validateLocked(input TaskInput, excludeID string) error {
 	if input.TaskType != "code" && input.TaskType != "document" && input.TaskType != "support" {
 		return fmt.Errorf("请选择任务类型")
 	}
+	// A non-code task simply drops its Agent association; only a code task's
+	// Agent reference has to resolve to an existing application.
+	if input.TaskType == "code" && input.AgentID != "" && !a.agentExistsLocked(input.AgentID) {
+		return fmt.Errorf("关联的 Agent 不存在")
+	}
 	pub, e1 := time.Parse("2006-01-02", input.PublishDate)
 	if e1 != nil {
 		return fmt.Errorf("请选择有效的发布日期和截止日期")
@@ -407,23 +630,42 @@ func (a *App) load() error {
 		return err
 	}
 	var store DataStore
-	if err := json.Unmarshal(raw, &store); err == nil && (store.Tasks != nil || store.Units != nil) {
-		a.tasks, a.units, a.defaultUnitID, a.settings = store.Tasks, store.Units, store.DefaultUnitID, store.Settings
-		if a.settings.BackgroundColor == "" {
-			a.settings.BackgroundColor = "#f7faff"
+	// Legacy files were a bare task array; current files are a DataStore object.
+	// Deciding by the top-level JSON token avoids guessing from which fields happen
+	// to be non-empty, so a store holding only agents (or only settings) still loads.
+	if isJSONArray(raw) {
+		if err := json.Unmarshal(raw, &a.tasks); err != nil {
+			return err
 		}
 		a.migrateUnitsLocked()
 		return nil
 	}
-	// Backward compatibility with the original array-only JSON format.
-	if err := json.Unmarshal(raw, &a.tasks); err != nil {
+	if err := json.Unmarshal(raw, &store); err != nil {
 		return err
+	}
+	a.tasks, a.units, a.agents, a.defaultUnitID, a.settings = store.Tasks, store.Units, store.Agents, store.DefaultUnitID, store.Settings
+	if a.settings.BackgroundColor == "" {
+		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
 	return nil
 }
+
+func isJSONArray(raw []byte) bool {
+	for _, b := range raw {
+		switch b {
+		case ' ', '\t', '\r', '\n':
+			continue
+		case '[':
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
 func (a *App) saveLocked() error {
-	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks, Settings: a.settings}, "", "  ")
+	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks, Agents: a.agents, Settings: a.settings}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -453,7 +695,7 @@ func (a *App) migrateUnitsLocked() {
 
 func (a *App) ExportData() error {
 	a.mu.RLock()
-	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks, Settings: a.settings}, "", "  ")
+	raw, err := json.MarshalIndent(DataStore{Units: a.units, DefaultUnitID: a.defaultUnitID, Tasks: a.tasks, Agents: a.agents, Settings: a.settings}, "", "  ")
 	a.mu.RUnlock()
 	if err != nil {
 		return err
@@ -474,16 +716,18 @@ func (a *App) ImportData() error {
 		return err
 	}
 	var store DataStore
-	if err = json.Unmarshal(raw, &store); err != nil || (store.Tasks == nil && store.Units == nil) {
+	if isJSONArray(raw) {
 		var tasks []Task
-		if e := json.Unmarshal(raw, &tasks); e != nil {
+		if err = json.Unmarshal(raw, &tasks); err != nil {
 			return fmt.Errorf("导入 JSON 格式无效")
 		}
 		store.Tasks = tasks
+	} else if err = json.Unmarshal(raw, &store); err != nil {
+		return fmt.Errorf("导入 JSON 格式无效")
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.tasks, a.units, a.defaultUnitID, a.settings = store.Tasks, store.Units, store.DefaultUnitID, store.Settings
+	a.tasks, a.units, a.agents, a.defaultUnitID, a.settings = store.Tasks, store.Units, store.Agents, store.DefaultUnitID, store.Settings
 	if a.settings.BackgroundColor == "" {
 		a.settings.BackgroundColor = "#f7faff"
 	}

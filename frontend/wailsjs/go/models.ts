@@ -1,5 +1,51 @@
 export namespace main {
 	
+	export class AgentApp {
+	    id: string;
+	    name: string;
+	    model: string;
+	    projectIds: string[];
+	    available: boolean;
+	    resetAt: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AgentApp(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.model = source["model"];
+	        this.projectIds = source["projectIds"];
+	        this.available = source["available"];
+	        this.resetAt = source["resetAt"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class AgentAppInput {
+	    name: string;
+	    model: string;
+	    projectIds: string[];
+	    available: boolean;
+	    resetAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AgentAppInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.model = source["model"];
+	        this.projectIds = source["projectIds"];
+	        this.available = source["available"];
+	        this.resetAt = source["resetAt"];
+	    }
+	}
 	export class Output {
 	    result: string;
 	    newFeatures: number;
@@ -52,6 +98,7 @@ export namespace main {
 	    taskType: string;
 	    status: string;
 	    deliverable: string;
+	    agentId: string;
 	    createdAt: string;
 	    updatedAt: string;
 	    completedAt: string;
@@ -74,6 +121,7 @@ export namespace main {
 	        this.taskType = source["taskType"];
 	        this.status = source["status"];
 	        this.deliverable = source["deliverable"];
+	        this.agentId = source["agentId"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.completedAt = source["completedAt"];
@@ -107,6 +155,7 @@ export namespace main {
 	    publishDate: string;
 	    dueDate: string;
 	    taskType: string;
+	    agentId: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TaskInput(source);
@@ -122,6 +171,7 @@ export namespace main {
 	        this.publishDate = source["publishDate"];
 	        this.dueDate = source["dueDate"];
 	        this.taskType = source["taskType"];
+	        this.agentId = source["agentId"];
 	    }
 	}
 	export class Unit {

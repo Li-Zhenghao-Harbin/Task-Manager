@@ -61,6 +61,24 @@
 
 状态变更后立即保存，列表徽标、筛选结果与概览统计同步更新。
 
+### 3.4 Agent 管理
+
+维护可用于代码任务的 Agent 应用：
+
+| 字段 | 类型/格式 | 说明 |
+| --- | --- | --- |
+| 应用名 | 文本，必填 | Agent 应用的名称 |
+| 模型名 | 文本，必填 | 自由填写，不做枚举限制 |
+| 关联项目 | 多选，可选 | 候选项为「任务类型 = 代码」的任务 |
+| 可用情况 | 布尔 | 手动维护，新建默认可用 |
+| 下次重置时间 | 日期时间，精确到分钟 | 不可用时填写；到点后自动恢复为可用 |
+
+Agent 应用在列表中显示为「应用名-模型名」。不新增独立的项目实体，「关联项目」直接复用任务类型为代码的任务。
+
+### 3.5 任务关联 Agent
+
+任务类型为「代码」的任务可单选关联一个可用的 Agent 应用；其他类型不显示该字段。任务类型由代码改为其他类型时，关联被自动清空。
+
 ## 4. 界面规划
 
 ```text
@@ -76,6 +94,7 @@
 └─────────────┴───────────────────────────────┴──────────────────────┘
 ```
 
+- 左侧导航在「产出概览」与「单位管理」之间新增 Agent 分组，其下为「Agent应用」子菜单。
 - 视觉：白色内容底、浅蓝导航和边界、主操作使用品牌蓝；保持充足留白与圆角。
 - 状态色：进行中为蓝色，已完成为绿色，已取消为灰色；逾期使用低饱和红色提示。
 - 新建/编辑任务使用居中抽屉或模态表单，日期、类型、层级均采用清晰的选择控件。
@@ -103,6 +122,27 @@ summary           text, nullable
 
 规则：支线任务必须关联存在的主线任务；主线任务没有 `parent_id`；截止日期不得早于发布日期；删除功能不纳入第一版，避免误删数据。
 
+### AgentApp
+
+```text
+id                string / UUID
+name              string
+model             string
+project_ids       []string   -- 仅可为任务类型为 code 的任务 ID
+available         bool
+reset_at          string     -- YYYY-MM-DDTHH:MM，精确到分钟
+created_at        datetime
+updated_at        datetime
+```
+
+规则：`agent_id` 只允许出现在任务类型为「代码」的任务上；「关联项目」只能指向任务类型为代码的任务；当 `available` 为 false 且 `reset_at` 已过时，读取列表时会自动恢复为可用并清空 `reset_at`。
+
+### Task 新增字段
+
+```text
+agent_id          nullable string
+```
+
 ## 6. 后端服务边界
 
 - `ListTasks(filters)`：取得列表、树形关联和筛选结果。
@@ -112,6 +152,9 @@ summary           text, nullable
 - `UpdateTaskStatus(id, status)`：只更新状态。
 - `UpdateTaskDetails(id, deliverables, summary)`：维护任务产出物和总结。
 - `GetDashboardStats()`：返回各状态数量及逾期数量。
+- `ListAgentApps()`：取得 Agent 应用列表；读取时执行「到点自动恢复可用」。
+- `CreateAgentApp(input)` / `UpdateAgentApp(id, input)`：校验并写入 Agent 应用。
+- `DeleteAgentApp(id)`：删除 Agent 应用，并清空任务上的关联。
 
 这些 Go 方法通过 Wails 绑定给前端调用；数据访问集中在 repository 层，便于后续改为 SQLite 或网络同步。
 
@@ -129,4 +172,6 @@ summary           text, nullable
 - 点击列表任务可查看完整属性。
 - 可将任一任务状态改为进行中、已完成或已取消，重启应用后仍保留。
 - 可按关键字段搜索、按类型和状态筛选。
+- 可登记 Agent 应用并关联到代码任务；Agent 在界面中显示为「应用名-模型名」。
+- Agent 设为不可用并设置重置时间后，到点自动恢复为可用。
 - 可在 Windows 上生成并启动独立的 `.exe`。
