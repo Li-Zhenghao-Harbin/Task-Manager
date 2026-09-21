@@ -67,6 +67,10 @@ type Unit struct {
 
 // AgentApp registers one Agent application together with the model it runs.
 // Projects are existing tasks whose type is "code"; there is no separate project entity.
+//
+// ProjectIDs is a derived view, not an independent relation: it always mirrors the code
+// tasks whose AgentID points at this application (see syncAgentProjectsLocked). Task is the
+// single source of truth so both edit directions cannot drift apart.
 type AgentApp struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
@@ -93,6 +97,13 @@ const agentResetLayout = "2006-01-02T15:04"
 // maxAgentProjects caps a single Agent application's project selection.
 const maxAgentProjects = 200
 
+// agentResetCheckInterval is how often the running app looks for reset times that passed.
+// Reset times have minute precision, so a sub-minute poll is enough to feel immediate.
+const agentResetCheckInterval = 30 * time.Second
+
+// agentResetEvent is the frontend event emitted after Agent applications are restored.
+const agentResetEvent = "agents:reset"
+
 type DataStore struct {
 	Units         []Unit     `json:"units"`
 	DefaultUnitID string     `json:"defaultUnitId"`
@@ -114,10 +125,23 @@ type App struct {
 	defaultUnitID string
 	settings      Settings
 	dataPath      string
-	mu            sync.RWMutex
+	// notifier delivers a desktop notification. It is a field so tests can replace it;
+	// nil falls back to the real Windows toast implementation.
+	notifier func(title, body string) error
+	mu       sync.RWMutex
 }
 
 func NewApp() *App { return &App{} }
+
+// notify sends a desktop notification through the configured notifier.
+func (a *App) notify(title, body string) {
+	send := a.notifier
+	if send == nil {
+		send = showWindowsToast
+	}
+	// A failed notification must never affect state restoration, so the error is dropped.
+	_ = send(title, body)
+}
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
@@ -132,12 +156,46 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.dataPath = filepath.Join(dir, "task-manager-data.json")
 	_ = a.load()
-	// Restore any Agent application whose reset time already passed while the app was closed.
+	// Restore Agent applications whose reset time passed while the app was closed, then
+	// keep watching so a reset that happens while the app runs also recovers and notifies.
+	a.checkAgentResets()
+	go a.watchAgentResets()
+}
+
+// checkAgentResets restores every Agent whose reset time has passed, persists the change and
+// notifies. The notification is sent outside the lock so no child process starts under it.
+func (a *App) checkAgentResets() {
 	a.mu.Lock()
-	if a.applyAgentResetLocked() {
+	restored := a.applyAgentResetLocked()
+	if len(restored) > 0 {
 		_ = a.saveLocked()
 	}
+	ctx := a.ctx
 	a.mu.Unlock()
+	if len(restored) == 0 {
+		return
+	}
+	for _, label := range restored {
+		a.notify("Agent 已恢复可用", label+" 的额度重置时间已到，现已恢复可用。")
+	}
+	if ctx != nil {
+		// Let the UI refresh its list without the user having to touch anything.
+		runtime.EventsEmit(ctx, agentResetEvent, restored)
+	}
+}
+
+// watchAgentResets polls for reset times that pass while the app is running and stops with ctx.
+func (a *App) watchAgentResets() {
+	ticker := time.NewTicker(agentResetCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			a.checkAgentResets()
+		case <-a.ctx.Done():
+			return
+		}
+	}
 }
 
 func (a *App) ListTasks() []Task {
@@ -282,12 +340,13 @@ func (a *App) DeleteUnit(id string) error {
 
 // ---------- Agent applications ----------
 
+// ListAgentApps returns the registered applications, first restoring any whose reset time has
+// passed. It routes through checkAgentResets so a restore triggered by opening the list still
+// notifies, instead of silently consuming the reset before the watcher sees it.
 func (a *App) ListAgentApps() []AgentApp {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.applyAgentResetLocked() {
-		_ = a.saveLocked()
-	}
+	a.checkAgentResets()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	items := make([]AgentApp, len(a.agents))
 	copy(items, a.agents)
 	for i := range items {
@@ -308,20 +367,22 @@ func (a *App) CreateAgentApp(input AgentAppInput) (AgentApp, error) {
 	}
 	now := time.Now().Format(time.RFC3339)
 	agent := AgentApp{
-		ID:         uuid.NewString(),
-		Name:       strings.TrimSpace(input.Name),
-		Model:      strings.TrimSpace(input.Model),
-		ProjectIDs: a.normalizeProjectIDs(input.ProjectIDs),
-		Available:  input.Available,
-		ResetAt:    strings.TrimSpace(input.ResetAt),
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:        uuid.NewString(),
+		Name:      strings.TrimSpace(input.Name),
+		Model:     strings.TrimSpace(input.Model),
+		Available: input.Available,
+		ResetAt:   strings.TrimSpace(input.ResetAt),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	if agent.Available {
 		agent.ResetAt = ""
 	}
 	a.agents = append(a.agents, agent)
-	return agent, a.saveLocked()
+	// Seed the relation from the task side, then let the tasks own the resulting list.
+	a.assignAgentProjectsLocked(agent.ID, input.ProjectIDs)
+	a.syncAgentProjectsLocked()
+	return a.agents[len(a.agents)-1], a.saveLocked()
 }
 
 func (a *App) UpdateAgentApp(id string, input AgentAppInput) (AgentApp, error) {
@@ -337,7 +398,6 @@ func (a *App) UpdateAgentApp(id string, input AgentAppInput) (AgentApp, error) {
 	updated := a.agents[idx]
 	updated.Name = strings.TrimSpace(input.Name)
 	updated.Model = strings.TrimSpace(input.Model)
-	updated.ProjectIDs = a.normalizeProjectIDs(input.ProjectIDs)
 	updated.Available = input.Available
 	updated.ResetAt = strings.TrimSpace(input.ResetAt)
 	if updated.Available {
@@ -345,7 +405,11 @@ func (a *App) UpdateAgentApp(id string, input AgentAppInput) (AgentApp, error) {
 	}
 	updated.UpdatedAt = time.Now().Format(time.RFC3339)
 	a.agents[idx] = updated
-	return updated, a.saveLocked()
+	// The submitted project list is a desired set: it reassigns or detaches tasks, and the
+	// tasks then feed the rebuilt list back into every Agent.
+	a.assignAgentProjectsLocked(id, input.ProjectIDs)
+	a.syncAgentProjectsLocked()
+	return a.agents[idx], a.saveLocked()
 }
 
 func (a *App) DeleteAgentApp(id string) error {
@@ -356,13 +420,16 @@ func (a *App) DeleteAgentApp(id string) error {
 		return fmt.Errorf("Agent 应用不存在")
 	}
 	a.agents = append(a.agents[:idx], a.agents[idx+1:]...)
-	// Drop references held by tasks so no task points at a deleted Agent.
+	// Drop references held by tasks so no task points at a deleted Agent, then rebuild the
+	// surviving Agents' lists from those tasks.
+	now := time.Now().Format(time.RFC3339)
 	for i := range a.tasks {
 		if a.tasks[i].AgentID == id {
 			a.tasks[i].AgentID = ""
-			a.tasks[i].UpdatedAt = time.Now().Format(time.RFC3339)
+			a.tasks[i].UpdatedAt = now
 		}
 	}
+	a.syncAgentProjectsLocked()
 	return a.saveLocked()
 }
 
@@ -420,11 +487,11 @@ func (a *App) validateAgentLocked(input AgentAppInput) error {
 	return nil
 }
 
-// applyAgentResetLocked restores availability once the reset time has passed and reports
-// whether anything changed, so the caller can decide to persist.
-func (a *App) applyAgentResetLocked() bool {
+// applyAgentResetLocked restores availability once the reset time has passed and returns the
+// labels of the restored applications so the caller can notify about them.
+func (a *App) applyAgentResetLocked() []string {
 	now := time.Now()
-	changed := false
+	restored := make([]string, 0, 1)
 	for i := range a.agents {
 		if a.agents[i].Available || strings.TrimSpace(a.agents[i].ResetAt) == "" {
 			continue
@@ -436,9 +503,95 @@ func (a *App) applyAgentResetLocked() bool {
 		a.agents[i].Available = true
 		a.agents[i].ResetAt = ""
 		a.agents[i].UpdatedAt = now.Format(time.RFC3339)
+		restored = append(restored, agentLabel(a.agents[i]))
+	}
+	return restored
+}
+
+// agentLabel renders an Agent application the way the UI shows it: "应用名-模型名".
+func agentLabel(agent AgentApp) string { return agent.Name + "-" + agent.Model }
+
+// ---------- Agent / task relation ----------
+
+// syncAgentProjectsLocked rebuilds every Agent's project list from the tasks, which are the
+// single source of truth for the relation. Returns whether anything changed.
+func (a *App) syncAgentProjectsLocked() bool {
+	changed := false
+	now := time.Now().Format(time.RFC3339)
+	for i := range a.agents {
+		ids := make([]string, 0, 4)
+		for j := range a.tasks {
+			if a.tasks[j].TaskType == "code" && a.tasks[j].AgentID == a.agents[i].ID {
+				ids = append(ids, a.tasks[j].ID)
+			}
+		}
+		if sameIDs(a.agents[i].ProjectIDs, ids) {
+			continue
+		}
+		a.agents[i].ProjectIDs = ids
+		a.agents[i].UpdatedAt = now
 		changed = true
 	}
 	return changed
+}
+
+// assignAgentProjectsLocked treats ids as the desired project set of one Agent: listed code
+// tasks are moved onto this Agent, code tasks that left the set are detached from it.
+func (a *App) assignAgentProjectsLocked(agentID string, ids []string) {
+	wanted := map[string]bool{}
+	for _, id := range a.normalizeProjectIDs(ids) {
+		wanted[id] = true
+	}
+	for i := range a.tasks {
+		if a.tasks[i].TaskType != "code" {
+			continue
+		}
+		switch {
+		case wanted[a.tasks[i].ID]:
+			a.tasks[i].AgentID = agentID
+		case a.tasks[i].AgentID == agentID:
+			// The task carrying the pointer decides; a project list that no longer holds it
+			// means the user unchecked it here.
+			a.tasks[i].AgentID = ""
+		}
+	}
+}
+
+// repairAgentLinksLocked fixes data written before the relation was unified: an Agent could
+// list a project that never made it onto the task. Tasks that already point somewhere keep
+// their pointer, so the repair never overrides an explicit task-side choice. Idempotent.
+func (a *App) repairAgentLinksLocked() bool {
+	changed := false
+	for i := range a.agents {
+		for _, projectID := range a.agents[i].ProjectIDs {
+			for j := range a.tasks {
+				if a.tasks[j].ID != projectID || a.tasks[j].TaskType != "code" {
+					continue
+				}
+				if a.tasks[j].AgentID == "" {
+					a.tasks[j].AgentID = a.agents[i].ID
+					changed = true
+				}
+				break
+			}
+		}
+	}
+	if a.syncAgentProjectsLocked() {
+		changed = true
+	}
+	return changed
+}
+
+func sameIDs(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) CreateTask(input TaskInput) (Task, error) {
@@ -454,6 +607,8 @@ func (a *App) CreateTask(input TaskInput) (Task, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.tasks = append(a.tasks, task)
+	// Keep every Agent application's project list in step with the task side.
+	a.syncAgentProjectsLocked()
 	return task, a.saveLocked()
 }
 
@@ -470,16 +625,8 @@ func (a *App) DeleteTask(id string) error {
 		}
 	}
 	a.tasks = append(a.tasks[:idx], a.tasks[idx+1:]...)
-	// Detach the deleted task from every Agent application's project list.
-	for i := range a.agents {
-		kept := a.agents[i].ProjectIDs[:0]
-		for _, projectID := range a.agents[i].ProjectIDs {
-			if projectID != "" && projectID != id {
-				kept = append(kept, projectID)
-			}
-		}
-		a.agents[i].ProjectIDs = kept
-	}
+	// Detach the deleted task from every Agent application's project list by rebuilding them.
+	a.syncAgentProjectsLocked()
 	return a.saveLocked()
 }
 
@@ -532,7 +679,9 @@ func (a *App) UpdateTask(task Task) (Task, error) {
 		task.Output.Supports = 0
 	}
 	a.tasks[idx] = task
-	return task, a.saveLocked()
+	// An agentId change here moves the task between Agent project lists.
+	a.syncAgentProjectsLocked()
+	return a.tasks[idx], a.saveLocked()
 }
 
 func (a *App) UpdateTaskStatus(id, status string) (Task, error) {
@@ -648,6 +797,11 @@ func (a *App) load() error {
 		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
+	// Data written before the relation was unified may hold an Agent-side project that never
+	// reached the task; repair it once here and persist so the two views agree from now on.
+	if a.repairAgentLinksLocked() {
+		_ = a.saveLocked()
+	}
 	return nil
 }
 
@@ -732,5 +886,7 @@ func (a *App) ImportData() error {
 		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
+	// Imported files may come from the pre-unification format, so repair before persisting.
+	a.repairAgentLinksLocked()
 	return a.saveLocked()
 }

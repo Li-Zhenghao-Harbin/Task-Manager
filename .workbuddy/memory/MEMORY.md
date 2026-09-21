@@ -13,9 +13,18 @@
 
 - SDD：规格放 `specs/NNN-<slug>/`，每号三件套 `spec.md`（做什么/不做什么/验收标准）、`design.md`、`tasks.md`。
 - 领域词汇：`TaskType = code | document | support`（界面文案分别是 代码 / 文档 / 实施）。
-- Agent 模块相关规则见 `specs/002-agent-module/spec.md`。
+- Agent 模块基础规则见 `specs/002-agent-module/spec.md`；**关联模型已被 003 修订**，见下。
+- **关联关系只有一个事实来源：`Task.AgentID`。** `AgentApp.ProjectIDs` 是派生视图，
+  由 `syncAgentProjectsLocked()` 按任务重建。任何改动关系的代码都必须维持这个不变量，
+  不要再往 `ProjectIDs` 里直接写数据。`repairAgentLinksLocked()` 在 `load()`/`ImportData()` 里做幂等修复。
+- 右侧详情面板（任务 / Agent）是**即时保存**，没有保存按钮。新增面板字段时不用加保存逻辑，
+  但新字段要进 `taskPayload()` / `agentPayload()` 的签名，否则自动保存不会触发。
+  **签名必须排除 `updatedAt`/`createdAt`**，否则会形成保存死循环。
+- Agent 通知：`App.notifier` 是可注入字段，测试里替换它避免真弹通知；`notify.go` 里是 Windows 实现。
 
 ## 构建与验证
 
 - 改了 Go 方法签名后必须重建绑定，否则前端类型报错：`wails generate module`。
 - 日常验证顺序：`go test ./...` → `npm --prefix frontend run build`（含 vue-tsc 类型检查）→ `wails build`。
+- 前端界面验证走用户级技能 `wails-vue-ui-verify`（mock 绑定 + 无头截图 + 行为断言），
+  注意 `window.runtime` 也要给桩，探针要等目标视图真正渲染完再操作。
