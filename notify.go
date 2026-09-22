@@ -27,6 +27,8 @@ $toast = New-Object Windows.UI.Notifications.ToastNotification $document
 `
 
 // showWindowsToast displays a desktop notification through the WinRT toast API.
+// The child process is launched with no console window (see hiddenProcessAttr): PowerShell is a
+// console program, so without it a cmd window flashes on screen every time a toast is shown.
 func showWindowsToast(title, body string) error {
 	command := exec.Command("powershell.exe",
 		"-NoProfile",
@@ -34,6 +36,7 @@ func showWindowsToast(title, body string) error {
 		"-WindowStyle", "Hidden",
 		"-EncodedCommand", encodePowerShell(toastScript),
 	)
+	command.SysProcAttr = hiddenProcessAttr()
 	command.Env = append(os.Environ(),
 		"TM_TOAST_APPID="+toastAppID,
 		"TM_TOAST_XML="+toastXML(title, body),
