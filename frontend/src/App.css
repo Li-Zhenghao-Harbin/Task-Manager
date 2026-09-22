@@ -20,16 +20,21 @@
 .confirmation-backdrop{z-index:20}.confirmation-modal{width:min(390px,100%);padding:30px;text-align:center}.confirmation-icon{width:38px;height:38px;margin:0 auto 14px;display:grid;place-items:center;border-radius:50%;background:#fff1f2;color:#dc2626;font-size:21px;font-weight:800}.confirmation-modal h2{font-size:19px}.confirmation-modal p{margin:11px 0 0;color:var(--muted);font-size:13px;line-height:1.65}.confirmation-modal .actions{margin-top:24px;justify-content:center}.danger-confirm{background:#dc2626}.danger-confirm:hover{background:#b91c1c}
 .task-list{max-height:calc(100vh - 190px);overflow-y:auto;overscroll-behavior:contain}
 
-.nav-sub{padding-left:22px}
+/* 「Agent应用」是 Agent 分组的子项，但**不做额外左缩进**：
+   它必须和「全部任务」「单位管理」等同级项的左边缘对齐（缩进 12px 会让人读成“没对齐”）。
+   2026-09-22 已删除原 `.nav-sub{padding-left:22px}`；类名保留在 DOM 上作为「Agent 分组子项」的语义钩子，
+   界面验证探针也靠 `.nav-item.nav-sub` 定位这一项，不要连类名一起删。 */
 .wide-field{grid-column:span 2}
 .agents-workspace{width:100%}
 .agents-panel{background:#fff;border:1px solid var(--line);border-radius:13px;padding:8px}
 .agent-list{display:flex;flex-direction:column}
-.agent-row{width:100%;border:0;border-bottom:1px solid #edf1f7;background:#fff;padding:15px 14px;display:grid;grid-template-columns:16px minmax(0,1.4fr) minmax(0,1.3fr) 130px 78px;align-items:center;gap:12px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+/* 行内 4 个元素：指示符 / 应用名-模型名 / 下次可用时间 / 可用情况。
+   日期列用 max-content —— 它要同时容纳「下次可用时间：2026-09-22 15:00」与「下次可用时间：—」两种长度，
+   写死宽度要么浪费、要么被 white-space:nowrap 顶出格子。列数必须与子元素数量一致，否则末项会换行到第二排。 */
+.agent-row{width:100%;border:0;border-bottom:1px solid #edf1f7;background:#fff;padding:15px 14px;display:grid;grid-template-columns:16px minmax(0,1fr) max-content 78px;align-items:center;gap:12px;cursor:pointer;text-align:left;color:inherit;font:inherit}
 .agent-row:last-child{border-bottom:0}
 .agent-row:hover,.agent-row.selected{background:#f2f7ff}
 .agent-title{font-weight:700;font-size:14px;word-break:break-all}
-.agent-projects{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .agent-reset{color:var(--muted);font-size:12px;white-space:nowrap}
 .agent-pill{justify-self:end;font-size:11px;font-weight:700;padding:5px 9px;border-radius:99px;color:#18794e;background:#e9f8f0;white-space:nowrap}
 .agent-pill.offline{color:#dc4b5d;background:#fdeef0}
@@ -41,7 +46,7 @@
 .agent-project-item:last-child{border-bottom:0}
 .agent-project-item input{width:auto!important;margin:0!important;accent-color:var(--blue)}
 .agent-modal{width:min(560px,100%)}
-@media(max-width:1100px){.agent-row{grid-template-columns:16px minmax(0,1.4fr) minmax(0,1fr) 78px}
+@media(max-width:1100px){.agent-row{grid-template-columns:16px minmax(0,1fr) 78px}
 .agent-reset{display:none}
 }
 
@@ -114,5 +119,10 @@
 .details.agent-details .agent-projects-editor{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .details.agent-details .agent-project-list{flex:1;min-height:96px;max-height:none;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fbfdff;padding:2px 10px}
 .details.agent-details .detail-actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+/* 【下次可用时间】的日期框独占标签下方一行，并与标签文字留出间距。
+   面板里「应用名 / 模型名」在 .fields 栅格里，靠 width:100% 自然换行；
+   这个字段是独立 label，输入框默认 inline-block 会紧贴在文字右侧，所以显式 display:block + margin-top。
+   作用域限 .agent-details —— 新增弹窗里的同名字段是 setting-row 左右布局，输入框在右侧，不能跟着换行。 */
+.details.agent-details input[type=datetime-local]{display:block;width:100%;margin-top:8px}
 /* 补偿上面的 display:flex：文件里更早的窄屏媒体查询用的是 .details（特异性更低），会被新规则盖掉 */
 @media(max-width:1000px){.details.agent-details{display:none}}
