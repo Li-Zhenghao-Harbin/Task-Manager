@@ -28,10 +28,14 @@
 .agents-workspace{width:100%}
 .agents-panel{background:#fff;border:1px solid var(--line);border-radius:13px;padding:8px}
 .agent-list{display:flex;flex-direction:column}
-/* 行内 4 个元素：指示符 / 应用名-模型名 / 下次可用时间 / 可用情况。
-   日期列用 max-content —— 它要同时容纳「下次可用时间：2026-09-22 15:00」与「下次可用时间：—」两种长度，
-   写死宽度要么浪费、要么被 white-space:nowrap 顶出格子。列数必须与子元素数量一致，否则末项会换行到第二排。 */
+/* 行内元素：指示符 / 应用名-模型名 / 下次可用时间 / 可用情况标签。
+   「下次可用时间」只在应用不可用时渲染 —— 可用时整格不出现（不再显示「下次可用时间：—」），
+   所以可用行只有 3 个子元素。每行自己是独立的 grid 容器，多一列末项就会被挤到第二排，
+   因此可用行必须用 .agent-row.available 把栅格降到 3 列，与可见子元素数量严格一致。
+   日期列用 max-content —— 它的内容是不定长的「下次可用时间：2026-09-22 15:00」，
+   写死宽度要么浪费、要么被 white-space:nowrap 顶出格子。 */
 .agent-row{width:100%;border:0;border-bottom:1px solid #edf1f7;background:#fff;padding:15px 14px;display:grid;grid-template-columns:16px minmax(0,1fr) max-content 78px;align-items:center;gap:12px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.agent-row.available{grid-template-columns:16px minmax(0,1fr) 78px}
 .agent-row:last-child{border-bottom:0}
 .agent-row:hover,.agent-row.selected{background:#f2f7ff}
 .agent-title{font-weight:700;font-size:14px;word-break:break-all}
@@ -46,7 +50,9 @@
 .agent-project-item:last-child{border-bottom:0}
 .agent-project-item input{width:auto!important;margin:0!important;accent-color:var(--blue)}
 .agent-modal{width:min(560px,100%)}
-@media(max-width:1100px){.agent-row{grid-template-columns:16px minmax(0,1fr) 78px}
+/* 窄屏：日期列整列隐藏，栅格降到 3 列。媒体查询不增加特异性，
+   所以要把 .agent-row.available 一并列上，否则窄屏下它会盖掉这里的 3 列定义（两处值相同，但必须显式写）。 */
+@media(max-width:1100px){.agent-row,.agent-row.available{grid-template-columns:16px minmax(0,1fr) 78px}
 .agent-reset{display:none}
 }
 
