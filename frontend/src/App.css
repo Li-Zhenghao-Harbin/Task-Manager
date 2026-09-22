@@ -79,20 +79,31 @@
 .workspace-full{grid-column:2 / -1}
 .prompt-workspace{width:100%;flex:1;min-height:0;display:flex;flex-direction:column}
 .prompt-title-line{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+/* 标题块：任务名与 agent 名同处一行，agent 名紧跟在任务名右侧（间距 8px，小于与按钮的 14px）。
+   基线对齐而非居中对齐——中文字形没有下伸部分，用 center 会让小字看起来偏上。
+   .agent-sub 原本是 display:block + margin-top:3px，被下面这条更具体的规则覆盖。 */
+.prompt-title-text{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.prompt-title-text .agent-sub{display:inline;margin-top:0}
 .back-button{border:1px solid #dbe5f2;background:#fff;color:var(--blue);border-radius:8px;padding:8px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .back-button:hover{background:var(--blue-50);border-color:#bfdbfe}
 .prompt-board{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:13px;padding:18px}
-/* 每条 prompt 独占一整行（单列纵向流），卡片内左右两栏：
-   左列竖排「Prompt N / 复制 / 删除」，右栏是撑满剩余宽度的文本框 */
+/* 每条 prompt 独占一整行（单列纵向流）。卡片纵向两段：
+   第一行是操作条 .prompt-head（【Prompt N】+【复制】靠左、【删除】靠右），第二行是撑满整宽的文本框。 */
 .prompt-grid{display:flex;flex-direction:column;gap:14px}
-.prompt-card{display:flex;align-items:stretch;gap:16px;border:1px solid var(--line);border-radius:11px;background:#fbfdff;padding:12px 14px}
-.prompt-side{flex:0 0 auto;width:96px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.prompt-card{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:11px;background:#fbfdff;padding:12px 14px}
+.prompt-head{display:flex;align-items:center;gap:8px}
 .prompt-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
 .prompt-copy{border:1px solid #bfdbfe;background:#f8fbff;color:var(--blue);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 .prompt-copy:hover{background:var(--blue-50)}
 .prompt-delete{border:1px solid #fecaca;background:#fff5f5;color:#dc2626;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 .prompt-delete:hover{background:#ffe9e9}
-.prompt-card textarea{flex:1;min-width:0;width:auto;min-height:132px;resize:vertical;font-size:13px;line-height:1.55}
+/* 删除靠右：flex 行里 margin-left:auto 会吃掉左侧全部剩余空间。
+   不用 justify-content:space-between —— 那会把【复制】也推离左边缘，
+   而 auto 外边距保留了 gap，两个按钮之间始终有最小留白。 */
+.prompt-head .prompt-delete{margin-left:auto}
+/* 文本框独占第二行：column 子项默认 align-self:stretch，宽度自动撑满。
+   这里必须去掉 flex:1（那是横向 flex 行的写法），否则它会去抢纵向剩余高度。 */
+.prompt-card textarea{flex:0 0 auto;min-width:0;width:auto;min-height:132px;resize:vertical;font-size:13px;line-height:1.55}
 .prompt-board .empty{padding:40px 26px}
 
 /* Agent 详情面板：关联项目列表撑满剩余高度，【删除应用】固定在最下方。

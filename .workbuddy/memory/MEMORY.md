@@ -52,13 +52,22 @@
   新增规则一律按 `.details.agent-details` 作用域，**不要写裸 `.details`**，否则会波及任务详情面板和新增弹窗。
   改这块时别忘了窄屏媒体查询：`@media(max-width:1000px){.details{display:none}}` 特异性只有 0,1,0，
   会被文件末尾更高特异性的新规则盖掉，**媒体查询不增加特异性**，必须显式补一条。
-- **Prompt 卡片是一行一条**（007）：`.prompt-grid` 是 `flex-direction:column`，卡片内 `display:flex`，
-  左列 `.prompt-side{width:96px;flex-direction:column;align-items:stretch}` 竖排「Prompt N / 复制 / 删除」，
-  右栏 textarea `flex:1;min-width:0;width:auto`（**不能用 `width:100%`**，flex-basis 取满宽会把卡片撑破）。
-  006 的 `auto-fill` 多列栅格已废弃，`.prompt-card-head`/`.prompt-actions` 已删除。
+- **Prompt 卡片＝一行操作条 + 一行整宽文本框**（009 定稿，结构最简）：`.prompt-grid` 是 `flex-direction:column`；
+  卡片 `display:flex;flex-direction:column;gap:10px`，第一个子元素是 `.prompt-head`（`display:flex;align-items:center;gap:8px`）
+  装 `prompt-label` + `prompt-copy` + `prompt-delete`，第二个子元素是 `textarea`。
+  【删除】靠右**只靠 `.prompt-head .prompt-delete{margin-left:auto}`**——不要换成 `justify-content:space-between`
+  （那会把【复制】也推离左边缘）；auto 外边距保留 `gap`，两个按钮之间始终有最小留白。
+  textarea 用 `flex:0 0 auto`（**不能留 `flex:1`**，在 column 容器里它会去抢纵向剩余高度；宽度靠 `align-self:stretch` 自动撑满）。
+  007 的 `.prompt-body`/`.prompt-side{width:96px}`、008 的 `.prompt-foot`（底部右对齐 + 分隔线）**都已删除**，
+  连同 006 的 `auto-fill` 多列栅格、`.prompt-card-head`/`.prompt-actions` 一起，这些都不要再写回来。
+- **Prompt 视图的标题行结构**（008）：`.prompt-title-line`（`gap:14px`）里是【返回】按钮 + `.prompt-title-text`；
+  后者（`gap:8px;align-items:baseline`）装 `h1` 任务名与 `.agent-sub` agent 名——靠两层容器拿到「按钮↔标题 14px、
+  任务名↔agent 名 8px」两个间距。返回按钮**不带箭头**，文案就是「返回」。
 
 ## 构建与验证
 
+- **`.workbuddy/`（工作记忆等本地数据）不入库**：`.gitignore` 里已有该条目，且已用 `git rm -r --cached .workbuddy`
+  把历史遗留的跟踪摘掉。以后**不要**再 `git add .workbuddy` 或用 `git add -A/-f` 把它带进来。
 - 改了 Go 方法签名后必须重建绑定，否则前端类型报错：`wails generate module`。
 - 日常验证顺序：`go test ./...` → `npm --prefix frontend run build`（含 vue-tsc 类型检查）→ `wails build`。
 - 前端界面验证走用户级技能 `wails-vue-ui-verify`（mock 绑定 + 无头截图 + 行为断言），

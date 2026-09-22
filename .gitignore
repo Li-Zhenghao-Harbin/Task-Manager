@@ -19,4 +19,8 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# Local AI assistant data (working memory, plans) — not part of the product.
+# NOTE: this folder was once tracked; `.gitignore` alone does not untrack it.
+# The files under .workbuddy/memory/ were removed from the index with
+# `git rm -r --cached .workbuddy`, and stay on disk for local use only.
 .workbuddy/
