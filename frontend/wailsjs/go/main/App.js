@@ -46,6 +46,10 @@ export function ListAgentApps() {
   return window['go']['main']['App']['ListAgentApps']();
 }
 
+export function ListAgentPrompts(arg1, arg2) {
+  return window['go']['main']['App']['ListAgentPrompts'](arg1, arg2);
+}
+
 export function ListTasks() {
   return window['go']['main']['App']['ListTasks']();
 }
@@ -60,6 +64,10 @@ export function SetDefaultUnit(arg1) {
 
 export function UpdateAgentApp(arg1, arg2) {
   return window['go']['main']['App']['UpdateAgentApp'](arg1, arg2);
+}
+
+export function UpdateAgentPrompts(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateAgentPrompts'](arg1, arg2, arg3);
 }
 
 export function UpdateSettings(arg1) {

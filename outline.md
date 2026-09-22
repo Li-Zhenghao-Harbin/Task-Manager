@@ -99,6 +99,21 @@ Agent 详情面板的「可用情况」下方提供 **「5小时后可用」** �
 上级任务仍作为分组头出现在该子任务正上方，并用暗色文字与左侧色条标出这是「上下文带出」而非筛选命中；其真实状态徽标保留，便于看出它已完成。
 上级已被删除的子任务不会丢失，单独列在列表末尾并标注「子任务（上级已删除）」。
 
+### 3.8 Agent 关联任务的 Prompt 管理
+
+每个「Agent 应用 × 关联任务」的组合可以各自维护一组 prompt：
+
+- Agent 应用列表里每个 Agent 行的关联任务区**默认展开**，进页面就能看到它在跑哪些任务（每行一个任务，并显示该任务的 prompt 条数）；
+  点行首的指示符（`▾`/`▸`）才是收起/展开，点行的其它位置只**选中**该 Agent；
+- 点击某个任务行，打开该任务的 **Prompt 管理视图**：它**占满主内容区 + 右侧面板的整块区域**，左侧导航保留，
+  顶部有【← 返回】回到 Agent 列表（返回时各行的展开状态保持）。视图内可添加、编辑、删除，
+  每条 prompt 还有【复制】按钮（写入系统剪贴板，空内容不写并给出提示）；
+- 改动即时落盘，与其它面板一致；切换任务或返回列表时，尚未到防抖时间的编辑也会一并保存；
+- 一条 prompt 就是**一段纯文本**，没有标题、分类或版本。
+
+prompt 依附于关联关系，但不随关联解除而销毁：从「关联项目」取消勾选后 prompt 仍保留，重新勾选即可继续使用。
+只有**删除任务**才会清掉它在各 Agent 下的 prompt；删除 Agent 应用时，该应用的全部 prompt 一并消失。
+
 ## 4. 界面规划
 
 ```text
@@ -115,6 +130,8 @@ Agent 详情面板的「可用情况」下方提供 **「5小时后可用」** �
 ```
 
 - 左侧导航在「产出概览」与「单位管理」之间新增 Agent 分组，其下为「Agent应用」子菜单。
+- Prompt 管理不是右侧面板的内容，而是**独立整区视图**：主内容区横跨「主内容 + 右侧详情」两列（`grid-column: 2 / -1`），
+  右侧详情区在视图打开期间不渲染；视图内部自行滚动，卡片按 `auto-fill` 栅格排布（宽屏多列、窄屏一列）。
 - 视觉：白色内容底、浅蓝导航和边界、主操作使用品牌蓝；保持充足留白与圆角。
 - 状态色：进行中为蓝色，已完成为绿色，已取消为灰色；逾期使用低饱和红色提示。
 - 新建/编辑任务使用居中抽屉或模态表单，日期、类型、层级均采用清晰的选择控件。
@@ -149,6 +166,7 @@ id                string / UUID
 name              string
 model             string
 project_ids       []string   -- 仅可为任务类型为 code 的任务 ID
+prompts           map[task_id][]prompt  -- 每个关联任务一组 prompt；prompt = { id, text }
 available         bool
 reset_at          string     -- YYYY-MM-DDTHH:MM，精确到分钟
 created_at        datetime
@@ -156,6 +174,7 @@ updated_at        datetime
 ```
 
 规则：`agent_id` 只允许出现在任务类型为「代码」的任务上；「关联项目」只能指向任务类型为代码的任务；当 `available` 为 false 且 `reset_at` 已过时，读取列表时会自动恢复为可用并清空 `reset_at`。
+`prompts` 的键必须指向该应用**当前已关联**的代码任务；解除关联时保留，删除任务时清除，加载时会剪掉指向已不存在任务的键。
 
 ### Task 新增字段
 
@@ -175,6 +194,8 @@ agent_id          nullable string
 - `ListAgentApps()`：取得 Agent 应用列表；读取时执行「到点自动恢复可用」。
 - `CreateAgentApp(input)` / `UpdateAgentApp(id, input)`：校验并写入 Agent 应用。
 - `DeleteAgentApp(id)`：删除 Agent 应用，并清空任务上的关联。
+- `ListAgentPrompts(agentId, taskId)` / `UpdateAgentPrompts(agentId, taskId, prompts)`：读取与整体替换某个「应用 × 任务」的 prompt 列表；
+  目标任务必须已关联到该应用且类型为代码，纯空白条目不落盘。
 
 这些 Go 方法通过 Wails 绑定给前端调用；数据访问集中在 repository 层，便于后续改为 SQLite 或网络同步。
 

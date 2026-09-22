@@ -25,7 +25,7 @@
 .agents-workspace{width:100%}
 .agents-panel{background:#fff;border:1px solid var(--line);border-radius:13px;padding:8px}
 .agent-list{display:flex;flex-direction:column}
-.agent-row{width:100%;border:0;border-bottom:1px solid #edf1f7;background:#fff;padding:15px 14px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.3fr) 130px 78px;align-items:center;gap:12px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.agent-row{width:100%;border:0;border-bottom:1px solid #edf1f7;background:#fff;padding:15px 14px;display:grid;grid-template-columns:16px minmax(0,1.4fr) minmax(0,1.3fr) 130px 78px;align-items:center;gap:12px;cursor:pointer;text-align:left;color:inherit;font:inherit}
 .agent-row:last-child{border-bottom:0}
 .agent-row:hover,.agent-row.selected{background:#f2f7ff}
 .agent-title{font-weight:700;font-size:14px;word-break:break-all}
@@ -41,7 +41,7 @@
 .agent-project-item:last-child{border-bottom:0}
 .agent-project-item input{width:auto!important;margin:0!important;accent-color:var(--blue)}
 .agent-modal{width:min(560px,100%)}
-@media(max-width:1100px){.agent-row{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 78px}
+@media(max-width:1100px){.agent-row{grid-template-columns:16px minmax(0,1.4fr) minmax(0,1fr) 78px}
 .agent-reset{display:none}
 }
 
@@ -60,3 +60,36 @@
 .cooldown-button{border:1px solid #dbe5f2;background:#f8fbff;color:var(--blue);border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 .cooldown-button:hover{background:var(--blue-50);border-color:#bfdbfe}
 .cooldown-row .hint{margin:0}
+
+/* Agent 列表：关联任务区默认展开，收起才需要点行首指示符；点任务行进入独立的 Prompt 管理视图 */
+.agent-caret{font-size:12px;color:#5c6c85;line-height:1;cursor:pointer;padding:2px 3px;border-radius:5px}
+.agent-caret:hover{color:var(--blue);background:var(--blue-50)}
+.agent-row.expanded{background:#f2f7ff}
+.agent-task-list{background:#fafcff;border-bottom:1px solid #edf1f7;padding:4px 0}
+.agent-task-row{width:100%;border:0;background:transparent;padding:11px 14px 11px 42px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;text-align:left;color:var(--ink);font:inherit;font-size:13px}
+.agent-task-row:hover{background:#eef5ff}
+.agent-task-row.active{background:#e6f0ff;color:var(--blue)}
+.agent-task-name{font-weight:600;word-break:break-all}
+.agent-task-row em{font-style:normal;font-size:11px;color:var(--muted);white-space:nowrap}
+.agent-task-row.active em{color:var(--blue)}
+.agent-task-list .hint{padding:8px 14px 10px 42px;margin:0}
+
+/* Prompt 管理视图：占满「主内容区 + 右侧面板」两列，滚动发生在视图内部 */
+.agent-sub{display:block;color:var(--muted);font-size:12px;margin-top:3px;word-break:break-all}
+.workspace-full{grid-column:2 / -1}
+.prompt-workspace{width:100%;flex:1;min-height:0;display:flex;flex-direction:column}
+.prompt-title-line{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.back-button{border:1px solid #dbe5f2;background:#fff;color:var(--blue);border-radius:8px;padding:8px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.back-button:hover{background:var(--blue-50);border-color:#bfdbfe}
+.prompt-board{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:13px;padding:18px}
+.prompt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+.prompt-card{border:1px solid var(--line);border-radius:11px;background:#fbfdff;padding:12px 14px}
+.prompt-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.prompt-card-head span{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
+.prompt-actions{display:flex;align-items:center;gap:7px}
+.prompt-copy{border:1px solid #bfdbfe;background:#f8fbff;color:var(--blue);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.prompt-copy:hover{background:var(--blue-50)}
+.prompt-delete{border:1px solid #fecaca;background:#fff5f5;color:#dc2626;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.prompt-delete:hover{background:#ffe9e9}
+.prompt-card textarea{width:100%;min-height:132px;resize:vertical;font-size:13px;line-height:1.55}
+.prompt-board .empty{padding:40px 26px}

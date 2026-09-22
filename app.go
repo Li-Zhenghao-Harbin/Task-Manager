@@ -78,9 +78,21 @@ type AgentApp struct {
 	ProjectIDs []string `json:"projectIds"`
 	Available  bool     `json:"available"`
 	// ResetAt uses the datetime-local format (minute precision), e.g. "2026-09-21T17:30".
-	ResetAt   string `json:"resetAt"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ResetAt string `json:"resetAt"`
+	// Prompts maps a task ID to the prompts written for it on this application: the same
+	// application needs different instructions per task. The key is not an independent
+	// relation — it rides on Task.AgentID — but it survives unlinking on purpose, so
+	// re-attaching a task brings its prompts back. Only deleting the task clears them.
+	Prompts   map[string][]AgentPrompt `json:"prompts"`
+	CreatedAt string                   `json:"createdAt"`
+	UpdatedAt string                   `json:"updatedAt"`
+}
+
+// AgentPrompt is one prompt stored against a (Agent application, task) pair. Text is the
+// whole payload: a prompt has no title or note of its own.
+type AgentPrompt struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
 }
 
 type AgentAppInput struct {
@@ -96,6 +108,12 @@ const agentResetLayout = "2006-01-02T15:04"
 
 // maxAgentProjects caps a single Agent application's project selection.
 const maxAgentProjects = 200
+
+// maxPromptsPerPair caps how many prompts one (application, task) pair can hold.
+const maxPromptsPerPair = 50
+
+// maxPromptLength caps one prompt's text, counted in runes so CJK is not penalised.
+const maxPromptLength = 20000
 
 // agentResetCheckInterval is how often the running app looks for reset times that passed.
 // Reset times have minute precision, so a sub-minute poll is enough to feel immediate.
@@ -354,6 +372,9 @@ func (a *App) ListAgentApps() []AgentApp {
 			// Keep projectIds as [] rather than null so the Vue list can iterate safely.
 			items[i].ProjectIDs = []string{}
 		}
+		if items[i].Prompts == nil {
+			items[i].Prompts = map[string][]AgentPrompt{}
+		}
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	return items
@@ -372,6 +393,7 @@ func (a *App) CreateAgentApp(input AgentAppInput) (AgentApp, error) {
 		Model:     strings.TrimSpace(input.Model),
 		Available: input.Available,
 		ResetAt:   strings.TrimSpace(input.ResetAt),
+		Prompts:   map[string][]AgentPrompt{},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -511,6 +533,158 @@ func (a *App) applyAgentResetLocked() []string {
 // agentLabel renders an Agent application the way the UI shows it: "应用名-模型名".
 func agentLabel(agent AgentApp) string { return agent.Name + "-" + agent.Model }
 
+// ---------- Agent prompts ----------
+//
+// A prompt belongs to the (application, task) pair: the same application needs different
+// instructions per task. Prompts therefore live on the Agent, keyed by task ID, and only
+// ever shrink for one reason — the task itself being deleted.
+
+// normalizePrompts drops blank entries, fills in missing IDs and caps the list.
+// Truncating beats rejecting: a pasted oversized prompt should not lose the whole save.
+func normalizePrompts(prompts []AgentPrompt) []AgentPrompt {
+	result := make([]AgentPrompt, 0, len(prompts))
+	seen := make(map[string]bool, len(prompts))
+	for _, prompt := range prompts {
+		if strings.TrimSpace(prompt.Text) == "" {
+			// An entry the user added but never typed into; it must not reach the data file.
+			continue
+		}
+		item := AgentPrompt{ID: strings.TrimSpace(prompt.ID), Text: prompt.Text}
+		if item.ID == "" || seen[item.ID] {
+			item.ID = uuid.NewString()
+		}
+		seen[item.ID] = true
+		if runes := []rune(item.Text); len(runes) > maxPromptLength {
+			item.Text = string(runes[:maxPromptLength])
+		}
+		result = append(result, item)
+		if len(result) >= maxPromptsPerPair {
+			break
+		}
+	}
+	return result
+}
+
+func samePrompts(left, right []AgentPrompt) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// normalizeAgentPromptsLocked makes every Agent's prompt map safe to work with: a nil map
+// becomes empty, keys left behind by deleted tasks are removed and each list is folded
+// through normalizePrompts. Idempotent, so it is safe to run on every load.
+func (a *App) normalizeAgentPromptsLocked() bool {
+	changed := false
+	known := make(map[string]bool, len(a.tasks))
+	for i := range a.tasks {
+		known[a.tasks[i].ID] = true
+	}
+	for i := range a.agents {
+		if a.agents[i].Prompts == nil {
+			a.agents[i].Prompts = map[string][]AgentPrompt{}
+			changed = true
+			continue
+		}
+		for taskID, list := range a.agents[i].Prompts {
+			if taskID == "" || !known[taskID] {
+				// The task is gone, so its prompts have nothing left to describe.
+				delete(a.agents[i].Prompts, taskID)
+				changed = true
+				continue
+			}
+			normalized := normalizePrompts(list)
+			if len(normalized) == 0 {
+				delete(a.agents[i].Prompts, taskID)
+				changed = true
+				continue
+			}
+			if !samePrompts(list, normalized) {
+				a.agents[i].Prompts[taskID] = normalized
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+// validatePromptTargetLocked resolves a (application, task) pair and rejects anything that
+// is not an existing code task currently attached to that application.
+func (a *App) validatePromptTargetLocked(agentID, taskID string) (int, error) {
+	idx := a.agentIndexOf(agentID)
+	if idx < 0 {
+		return -1, fmt.Errorf("Agent 应用不存在")
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return -1, fmt.Errorf("请先选择一个关联任务")
+	}
+	for i := range a.tasks {
+		if a.tasks[i].ID != taskID {
+			continue
+		}
+		if a.tasks[i].TaskType != "code" {
+			return -1, fmt.Errorf("只有代码类型的任务可以管理 Prompt")
+		}
+		if a.tasks[i].AgentID != agentID {
+			return -1, fmt.Errorf("该任务未关联到此 Agent 应用")
+		}
+		return idx, nil
+	}
+	return -1, fmt.Errorf("任务不存在")
+}
+
+// ListAgentPrompts returns the prompts stored for one (application, task) pair.
+func (a *App) ListAgentPrompts(agentID, taskID string) ([]AgentPrompt, error) {
+	a.checkAgentResets()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	idx, err := a.validatePromptTargetLocked(agentID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	list := a.agents[idx].Prompts[strings.TrimSpace(taskID)]
+	items := make([]AgentPrompt, len(list))
+	copy(items, list)
+	return items, nil
+}
+
+// UpdateAgentPrompts replaces the whole prompt list of one (application, task) pair.
+// The panel edits a local list and saves it as a whole, so add / edit / delete all arrive
+// here as one replacement — which also makes "cleared the text box" mean "delete it".
+func (a *App) UpdateAgentPrompts(agentID, taskID string, prompts []AgentPrompt) ([]AgentPrompt, error) {
+	a.checkAgentResets()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	idx, err := a.validatePromptTargetLocked(agentID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	taskID = strings.TrimSpace(taskID)
+	normalized := normalizePrompts(prompts)
+	if a.agents[idx].Prompts == nil {
+		a.agents[idx].Prompts = map[string][]AgentPrompt{}
+	}
+	if len(normalized) == 0 {
+		delete(a.agents[idx].Prompts, taskID)
+	} else {
+		a.agents[idx].Prompts[taskID] = normalized
+	}
+	a.agents[idx].UpdatedAt = time.Now().Format(time.RFC3339)
+	if err := a.saveLocked(); err != nil {
+		return nil, err
+	}
+	items := make([]AgentPrompt, len(normalized))
+	copy(items, normalized)
+	return items, nil
+}
+
 // ---------- Agent / task relation ----------
 
 // syncAgentProjectsLocked rebuilds every Agent's project list from the tasks, which are the
@@ -625,6 +799,10 @@ func (a *App) DeleteTask(id string) error {
 		}
 	}
 	a.tasks = append(a.tasks[:idx], a.tasks[idx+1:]...)
+	// Prompts describe an (application, task) pair, so the task's prompts leave with it.
+	for i := range a.agents {
+		delete(a.agents[i].Prompts, id)
+	}
 	// Detach the deleted task from every Agent application's project list by rebuilding them.
 	a.syncAgentProjectsLocked()
 	return a.saveLocked()
@@ -797,9 +975,11 @@ func (a *App) load() error {
 		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
+	// Normalising prompts also drops keys whose task is no longer in the file.
+	prunedPrompts := a.normalizeAgentPromptsLocked()
 	// Data written before the relation was unified may hold an Agent-side project that never
 	// reached the task; repair it once here and persist so the two views agree from now on.
-	if a.repairAgentLinksLocked() {
+	if a.repairAgentLinksLocked() || prunedPrompts {
 		_ = a.saveLocked()
 	}
 	return nil
@@ -886,6 +1066,7 @@ func (a *App) ImportData() error {
 		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
+	a.normalizeAgentPromptsLocked()
 	// Imported files may come from the pre-unification format, so repair before persisting.
 	a.repairAgentLinksLocked()
 	return a.saveLocked()

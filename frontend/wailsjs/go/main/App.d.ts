@@ -24,6 +24,8 @@ export function ImportData():Promise<void>;
 
 export function ListAgentApps():Promise<Array<main.AgentApp>>;
 
+export function ListAgentPrompts(arg1:string,arg2:string):Promise<Array<main.AgentPrompt>>;
+
 export function ListTasks():Promise<Array<main.Task>>;
 
 export function ListUnits():Promise<Array<main.Unit>>;
@@ -31,6 +33,8 @@ export function ListUnits():Promise<Array<main.Unit>>;
 export function SetDefaultUnit(arg1:string):Promise<void>;
 
 export function UpdateAgentApp(arg1:string,arg2:main.AgentAppInput):Promise<main.AgentApp>;
+
+export function UpdateAgentPrompts(arg1:string,arg2:string,arg3:Array<main.AgentPrompt>):Promise<Array<main.AgentPrompt>>;
 
 export function UpdateSettings(arg1:main.Settings):Promise<main.Settings>;
 
