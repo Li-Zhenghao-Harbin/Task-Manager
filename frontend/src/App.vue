@@ -8,6 +8,7 @@ import {
   DeleteTask,
   DeleteUnit,
   ExportData,
+  GetAppVersion,
   GetDefaultUnitID,
   GetSettings,
   ImportData,
@@ -104,6 +105,8 @@ const showCreate = ref(false)
 const showAgentCreate = ref(false)
 const showUnitCreate = ref(false)
 const showAbout = ref(false)
+// 版本号来自 wails.json 的 info.productVersion，与 exe 右键属性同源。
+const appVersion = ref('')
 const showSettings = ref(false)
 const message = ref('')
 const unitDraft = ref('')
@@ -962,6 +965,13 @@ watch([selectedAgent, selectedAgentTaskId], () => loadPrompts())
 watch(prompts, () => queuePrompts(), { deep: true })
 onMounted(() => {
   refresh().catch((error) => (message.value = String(error)))
+  try {
+    GetAppVersion()
+      .then((version) => (appVersion.value = version))
+      .catch(() => {})
+  } catch {
+    /* 无 Wails 运行时的预览环境没有绑定 */
+  }
   // 重置时间到点后由后端广播，这里刷新列表即可看到最新状态。
   try {
     EventsOn('agents:reset', () => {
@@ -1573,7 +1583,7 @@ onMounted(() => {
           <button class="close" type="button" @click="showSettings = false">×</button>
         </div>
         <label class="setting-row"
-          ><span><b>主页面背景色</b><small>影响任务与产出主页面背景</small></span
+          ><span><b>主页面背景色</b></span
           ><input v-model="settings.backgroundColor" type="color" @input="applyBackground"
         /></label>
         <div class="preset-colors">
@@ -1588,7 +1598,7 @@ onMounted(() => {
           ><button type="button" class="reset-color" @click="resetBackground">恢复默认</button>
         </div>
         <label class="setting-row"
-          ><span><b>开机自动启动</b><small>登录 Windows 后自动打开 Task Manager</small></span
+          ><span><b>开机自动启动</b></span
           ><input v-model="settings.autoStart" type="checkbox" class="setting-toggle"
         /></label>
         <div class="actions">
@@ -1604,7 +1614,9 @@ onMounted(() => {
         </div>
         <div class="about-grid">
           <div><small>程序名</small><strong>Task Manager | 工作任务管理器</strong></div>
-          <div><small>版本号</small><strong>beta</strong></div>
+          <div>
+            <small>版本号</small><strong>{{ appVersion || '—' }}</strong>
+          </div>
           <div><small>作者</small><strong>李正浩</strong></div>
         </div>
       </div>

@@ -30,6 +30,10 @@ export function ExportData() {
   return window['go']['main']['App']['ExportData']();
 }
 
+export function GetAppVersion() {
+  return window['go']['main']['App']['GetAppVersion']();
+}
+
 export function GetDefaultUnitID() {
   return window['go']['main']['App']['GetDefaultUnitID']();
 }

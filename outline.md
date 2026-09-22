@@ -10,11 +10,11 @@
 | --- | --- | --- |
 | 桌面容器 | Wails | Windows 窗口、前后端通信、EXE 打包 |
 | 后端 | Go | 业务规则、数据读写、任务服务 |
-| 前端 | React + TypeScript + Vite | 任务列表、详情与编辑界面 |
+| 前端 | Vue + TypeScript + Vite | 任务列表、详情与编辑界面 |
 | 样式 | CSS / CSS Modules | 蓝白主题、响应式布局和组件状态 |
 | 本地数据 | JSON 文件（第一版） | 单文件、离线可用、无需安装数据库服务 |
 
-> 前端框架可在项目初始化时使用 Wails 的 React + TypeScript 模板创建。
+> 前端框架可在项目初始化时使用 Wails 的 Vue + TypeScript 模板创建。
 
 ## 3. 功能范围（第一版）
 
@@ -230,7 +230,7 @@ agent_id          nullable string
 
 ## 7. 交付阶段
 
-1. 初始化 Wails/React/TypeScript 项目，建立 Go 服务与 SQLite 数据库迁移。
+1. 初始化 Wails/Vue/TypeScript 项目，建立 Go 服务与 SQLite 数据库迁移。
 2. 完成任务的数据模型、创建、读取、编辑和状态更新接口。
 3. 完成蓝白主题布局、任务树、筛选搜索与详情面板。
 4. 联调校验（表单校验、状态变更、支线关联、数据持久化）。
@@ -246,3 +246,69 @@ agent_id          nullable string
 - Agent 设为不可用并设置重置时间后，到点自动恢复为可用；也可点「5小时后可用」一键置为不可用。
 - 筛「进行中」时，仍能看到对应子任务的上级任务（上级即使已完成也会带出显示）。
 - 可在 Windows 上生成并启动独立的 `.exe`。
+
+## 9. 构建配置与 exe 元数据
+
+### 9.1 配置分工
+
+| 文件 | 角色 | 是否入库 |
+| --- | --- | --- |
+| `wails.json` | Wails 项目配置；**exe 元数据的唯一事实来源**（`info` 块） | 入库 |
+| `build/windows/info.json` | PE 版本资源模板，把 `{{.Info.*}}` 映射成 Windows 属性页字段 | 入库 |
+| `build/darwin/Info.plist` | macOS 包信息模板，同样引用 `{{.Info.*}}`，值自动同步 | 入库 |
+| `build/windows/installer/project.nsi` / `wails_tools.nsh` | NSIS 安装包脚本，也从同一组 `Info.*` 取值 | 入库 |
+| `Task_Manager-res.syso` | `wails build` 的中间产物，构建结束自动删除 | 不需登记（本身不会残留） |
+
+数据流：`wails.json` 的 `info` → Wails 解析为 `Project.Info` → 渲染 `build/windows/info.json` 模板
+→ winres 编译成 `VS_VERSION_INFO` 资源 → 链入 exe → 右键「属性 → 详细信息」。
+所以**没必要直接改 `build/windows/info.json` 里的字面值**，改 `wails.json` 一处即可同时覆盖 Windows、macOS 与安装包。
+
+### 9.2 `wails.json` 的 `info` 块
+
+| 键 | 含义 | 属性页显示 | 当前取值 |
+| --- | --- | --- | --- |
+| `companyName` | 公司/组织 | 公司名称 | `Li Zhenghao` |
+| `productName` | 产品名 | 产品名称 / 文件说明 | `Task Manager` |
+| `productVersion` | 版本号 | 产品版本 / 文件版本 | `1.0.0` |
+| `copyright` | 版权行 | 版权 | `© 2026 Li Zhenghao` |
+| `comments` | 备注 | 备注 | 空（已去掉 Wails 默认广告语） |
+
+未配置时的 Wails 默认值有个坑：`copyright` 会落成占位符字面量 `Copyright.........`，
+`companyName` 则直接继承项目名。`build/windows/info.json` 另补了 `InternalName`（内部名称）
+与 `OriginalFilename`（原始文件名），并把 `fixed.product_version` 补上——
+此前只写了 `fixed.file_version`，导致固定版本块里的产品版本恒为 `0.0.0.0`。
+
+**版本号写法**：3 段（`1.0.0`）或 4 段（`1.0.0.0`）。写 2 段会让 NSIS 的 `VIProductVersion`
+凑不满 4 段而打包失败。
+
+### 9.3 关于 `wails.json` 的 `author`（已删除）
+
+曾有的 `author: { name, email }` 是**只写不读**的元数据：Wails v2.12.0 里只有
+`wails init` 生成脚手架时会写入它（由 `pkg/templates/*/wails.tmpl.json` 渲染），
+`wails build`、`wails generate module`、`wails doctor` 全程不读。
+它与 exe 属性、绑定生成、打包、安装包均无关系，016 已删除，删除后构建实测通过。
+想保留作者信息就写进 `info.companyName` / `info.copyright`。
+
+### 9.4 【关于】弹窗的版本号
+
+`version.go` 用 `//go:embed wails.json` 把构建配置内嵌进二进制，`sync.OnceValue` 解析一次，
+经 `GetAppVersion()` 绑定给前端，`App.vue` 在 `onMounted` 取值渲染。
+
+**必须 embed**：`wails.json` 是**构建期**配置，exe 拷到别处单独运行时旁边不会有它，
+所以不能运行时 `os.ReadFile`。（也不用 `-ldflags -X` 或前端 `vite define`：前者要额外维护一条
+构建命令，后者把值打进 JS 包快照，会让版本号同时存在于两套构建系统里。）
+
+于是版本号**只有一处事实来源**：
+
+| 显示位置 | 通道 |
+| --- | --- |
+| exe 右键属性（产品版本 / 文件版本） | `wails build` 渲染 `build/windows/info.json` → winres → PE 资源 |
+| 【关于】弹窗 | `//go:embed wails.json` → `GetAppVersion()` → 前端 `appVersion` |
+
+改 `wails.json` 一处，两处同时变。exe 属性页的**文件版本**会被补成 4 段（`1.0.0` → `1.0.0.0`），
+那是 Windows 版本资源的结构要求；弹窗显示的是 json 里的原始三段式，不是 bug。
+
+解析失败时返回空串、界面降级显示 `—`（刻意不设默认版本号，避免假值掩盖配置丢失）。
+预览环境（纯静态页、无 Wails 绑定）里该方法可能是 `undefined`，调用会**同步**抛 `TypeError`，
+`.catch()` 接不住，前端要包 `try/catch`。
+

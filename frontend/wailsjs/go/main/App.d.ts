@@ -16,6 +16,8 @@ export function DeleteUnit(arg1:string):Promise<void>;
 
 export function ExportData():Promise<void>;
 
+export function GetAppVersion():Promise<string>;
+
 export function GetDefaultUnitID():Promise<string>;
 
 export function GetSettings():Promise<main.Settings>;

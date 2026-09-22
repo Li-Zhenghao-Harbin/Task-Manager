@@ -24,3 +24,5 @@ Thumbs.db
 # The files under .workbuddy/memory/ were removed from the index with
 # `git rm -r --cached .workbuddy`, and stay on disk for local use only.
 .workbuddy/
+
+/products/
