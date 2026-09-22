@@ -102,10 +102,11 @@ const section = ref<'tasks' | 'output' | 'agent' | 'units'>('tasks')
 const outputFilter = ref<'all' | TaskType>('all')
 const showCreate = ref(false)
 const showAgentCreate = ref(false)
+const showUnitCreate = ref(false)
 const showAbout = ref(false)
 const showSettings = ref(false)
 const message = ref('')
-const newUnit = ref('')
+const unitDraft = ref('')
 const query = ref('')
 const status = ref<'all' | Status>('all')
 const kindFilter = ref<'all' | Kind>('all')
@@ -572,10 +573,15 @@ async function deleteAgent() {
     '删除',
   )
 }
+function openUnitCreate() {
+  unitDraft.value = ''
+  showUnitCreate.value = true
+}
 async function addUnit() {
   try {
-    await CreateUnit(newUnit.value)
-    newUnit.value = ''
+    await CreateUnit(unitDraft.value)
+    unitDraft.value = ''
+    showUnitCreate.value = false
     await refresh()
   } catch (error) {
     message.value = String(error)
@@ -1264,11 +1270,11 @@ onMounted(() => {
             <p class="eyebrow">基础信息</p>
             <h1>单位管理</h1>
           </div>
+          <div class="actions">
+            <button class="primary" @click="openUnitCreate">＋ 新增单位</button>
+          </div>
         </header>
         <section class="units-panel">
-          <form class="unit-add" @submit.prevent="addUnit">
-            <input v-model="newUnit" placeholder="输入单位名称" /><button class="primary">新增单位</button>
-          </form>
           <div class="unit-list">
             <div v-for="unit in units" :key="unit.id" class="unit-row">
               <span>{{ unit.name }}</span
@@ -1276,7 +1282,7 @@ onMounted(() => {
               ><button @click="rename(unit)">修改</button
               ><button class="delete-button" @click="deleteUnit(unit)">删除</button>
             </div>
-            <div v-if="!units.length" class="empty">暂无单位，请先新增一个单位。</div>
+            <div v-if="!units.length" class="empty">暂无单位，点击右上角新增。</div>
           </div>
         </section>
       </div>
@@ -1521,6 +1527,20 @@ onMounted(() => {
         <div class="actions">
           <button type="button" @click="showAgentCreate = false">取消</button
           ><button class="primary">创建 Agent 应用</button>
+        </div>
+      </form>
+    </div>
+    <div v-if="showUnitCreate" class="modal-backdrop">
+      <form class="modal unit-modal" @submit.prevent="addUnit">
+        <div class="modal-title">
+          <h2>新增单位</h2>
+          <button class="close" type="button" @click="showUnitCreate = false">×</button>
+        </div>
+        <div class="form-grid">
+          <label class="wide-field">单位名<input v-model="unitDraft" required /></label>
+        </div>
+        <div class="actions">
+          <button type="button" @click="showUnitCreate = false">取消</button><button class="primary">创建单位</button>
         </div>
       </form>
     </div>
