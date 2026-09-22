@@ -82,14 +82,26 @@
 .back-button{border:1px solid #dbe5f2;background:#fff;color:var(--blue);border-radius:8px;padding:8px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .back-button:hover{background:var(--blue-50);border-color:#bfdbfe}
 .prompt-board{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:13px;padding:18px}
-.prompt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
-.prompt-card{border:1px solid var(--line);border-radius:11px;background:#fbfdff;padding:12px 14px}
-.prompt-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
-.prompt-card-head span{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
-.prompt-actions{display:flex;align-items:center;gap:7px}
+/* 每条 prompt 独占一整行（单列纵向流），卡片内左右两栏：
+   左列竖排「Prompt N / 复制 / 删除」，右栏是撑满剩余宽度的文本框 */
+.prompt-grid{display:flex;flex-direction:column;gap:14px}
+.prompt-card{display:flex;align-items:stretch;gap:16px;border:1px solid var(--line);border-radius:11px;background:#fbfdff;padding:12px 14px}
+.prompt-side{flex:0 0 auto;width:96px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.prompt-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
 .prompt-copy{border:1px solid #bfdbfe;background:#f8fbff;color:var(--blue);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 .prompt-copy:hover{background:var(--blue-50)}
 .prompt-delete{border:1px solid #fecaca;background:#fff5f5;color:#dc2626;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 .prompt-delete:hover{background:#ffe9e9}
-.prompt-card textarea{width:100%;min-height:132px;resize:vertical;font-size:13px;line-height:1.55}
+.prompt-card textarea{flex:1;min-width:0;width:auto;min-height:132px;resize:vertical;font-size:13px;line-height:1.55}
 .prompt-board .empty{padding:40px 26px}
+
+/* Agent 详情面板：关联项目列表撑满剩余高度，【删除应用】固定在最下方。
+   注意 overflow:hidden —— .details 原本整体滚动，不关掉的话外层会先滚，
+   flex:1 的列表就永远长不大。 */
+.details.agent-details{display:flex;flex-direction:column;overflow:hidden}
+.details.agent-details>*{flex:0 0 auto}
+.details.agent-details .agent-projects-editor{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.details.agent-details .agent-project-list{flex:1;min-height:96px;max-height:none;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fbfdff;padding:2px 10px}
+.details.agent-details .detail-actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+/* 补偿上面的 display:flex：文件里更早的窄屏媒体查询用的是 .details（特异性更低），会被新规则盖掉 */
+@media(max-width:1000px){.details.agent-details{display:none}}

@@ -47,6 +47,15 @@
   005 的「单缓冲区 + 单签名」写法会静默丢编辑，**不要退回去**。
 - 复制 prompt 走三级降级：`ClipboardSetText`（`wailsjs/runtime/runtime`）→ `navigator.clipboard` → 临时 textarea，
   三级都要包 try/catch（预览环境没有 `window.runtime`）。
+- **Agent 详情面板的专属类名是 `.details.agent-details`**（007）：面板改成纵向 flex，【关联项目】列表吃掉剩余高度
+  （`overflow:hidden` + `>*{flex:0 0 auto}` + 列表 `flex:1;max-height:none`），【删除应用】是最后一个子元素、自动贴底。
+  新增规则一律按 `.details.agent-details` 作用域，**不要写裸 `.details`**，否则会波及任务详情面板和新增弹窗。
+  改这块时别忘了窄屏媒体查询：`@media(max-width:1000px){.details{display:none}}` 特异性只有 0,1,0，
+  会被文件末尾更高特异性的新规则盖掉，**媒体查询不增加特异性**，必须显式补一条。
+- **Prompt 卡片是一行一条**（007）：`.prompt-grid` 是 `flex-direction:column`，卡片内 `display:flex`，
+  左列 `.prompt-side{width:96px;flex-direction:column;align-items:stretch}` 竖排「Prompt N / 复制 / 删除」，
+  右栏 textarea `flex:1;min-width:0;width:auto`（**不能用 `width:100%`**，flex-basis 取满宽会把卡片撑破）。
+  006 的 `auto-fill` 多列栅格已废弃，`.prompt-card-head`/`.prompt-actions` 已删除。
 
 ## 构建与验证
 
