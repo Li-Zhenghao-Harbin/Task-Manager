@@ -43,12 +43,12 @@
 .agent-pill{justify-self:end;font-size:11px;font-weight:700;padding:5px 9px;border-radius:99px;color:#18794e;background:#e9f8f0;white-space:nowrap}
 .agent-pill.offline{color:#dc4b5d;background:#fdeef0}
 .agent-heading{display:block;font-weight:700;font-size:15px;color:var(--ink);margin-top:3px;word-break:break-all}
-.agent-projects-editor{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
-.agent-projects-editor h3{margin:0;color:#17233b;font-size:15px}
-.agent-project-list{margin-top:10px;max-height:220px;overflow:auto}
-.agent-project-item{display:flex!important;align-items:center;gap:9px;font-size:13px!important;font-weight:600!important;color:var(--ink)!important;margin:0!important;padding:7px 4px;border-bottom:1px solid #f1f5fa;cursor:pointer}
-.agent-project-item:last-child{border-bottom:0}
-.agent-project-item input{width:auto!important;margin:0!important;accent-color:var(--blue)}
+.agent-tasks-editor{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
+.agent-tasks-editor h3{margin:0;color:#17233b;font-size:15px}
+.agent-task-options{margin-top:10px;max-height:220px;overflow:auto}
+.agent-task-option{display:flex!important;align-items:center;gap:9px;font-size:13px!important;font-weight:600!important;color:var(--ink)!important;margin:0!important;padding:7px 4px;border-bottom:1px solid #f1f5fa;cursor:pointer}
+.agent-task-option:last-child{border-bottom:0}
+.agent-task-option input{width:auto!important;margin:0!important;accent-color:var(--blue)}
 .agent-modal{width:min(560px,100%)}
 /* 新建单位的入口挪到面板右上角（与「＋ 新建任务」同款），改用弹窗只收「单位名」。
    单字段弹窗按默认 620 宽会空出一大片，收窄到 430。 */
@@ -120,13 +120,13 @@
 .prompt-card textarea{flex:0 0 auto;min-width:0;width:auto;min-height:132px;resize:vertical;font-size:13px;line-height:1.55}
 .prompt-board .empty{padding:40px 26px}
 
-/* Agent 详情面板：关联项目列表撑满剩余高度，【删除应用】固定在最下方。
+/* Agent 详情面板：关联任务列表撑满剩余高度，【删除应用】固定在最下方。
    注意 overflow:hidden —— .details 原本整体滚动，不关掉的话外层会先滚，
    flex:1 的列表就永远长不大。 */
 .details.agent-details{display:flex;flex-direction:column;overflow:hidden}
 .details.agent-details>*{flex:0 0 auto}
-.details.agent-details .agent-projects-editor{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
-.details.agent-details .agent-project-list{flex:1;min-height:96px;max-height:none;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fbfdff;padding:2px 10px}
+.details.agent-details .agent-tasks-editor{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.details.agent-details .agent-task-options{flex:1;min-height:96px;max-height:none;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fbfdff;padding:2px 10px}
 .details.agent-details .detail-actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 /* 【下次可用时间】的日期框独占标签下方一行，并与标签文字留出间距。
    面板里「应用名 / 模型名」在 .fields 栅格里，靠 width:100% 自然换行；

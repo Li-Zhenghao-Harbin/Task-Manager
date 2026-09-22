@@ -44,21 +44,21 @@ func TestAgentRequiresNameAndModel(t *testing.T) {
 	}
 }
 
-func TestAgentProjectsMustBeCodeTasks(t *testing.T) {
+func TestAgentTasksMustBeCodeTasks(t *testing.T) {
 	app := newTestApp(t)
 	code := seedCodeTask(t, app, "代码任务", "code")
 	doc := seedCodeTask(t, app, "文档任务", "document")
 
-	if _, err := app.CreateAgentApp(AgentAppInput{Name: "A", Model: "m", ProjectIDs: []string{doc.ID}, Available: true}); err == nil {
-		t.Fatal("expected a non-code task to be rejected as an associated project")
+	if _, err := app.CreateAgentApp(AgentAppInput{Name: "A", Model: "m", TaskIDs: []string{doc.ID}, Available: true}); err == nil {
+		t.Fatal("expected a non-code task to be rejected as an attachable task")
 	}
 
-	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Claude Code", Model: "Opus", ProjectIDs: []string{code.ID, code.ID, ""}, Available: true})
+	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Claude Code", Model: "Opus", TaskIDs: []string{code.ID, code.ID, ""}, Available: true})
 	if err != nil {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
-	if len(agent.ProjectIDs) != 1 || agent.ProjectIDs[0] != code.ID {
-		t.Fatalf("project ids should be de-duplicated, got %#v", agent.ProjectIDs)
+	if len(agent.TaskIDs) != 1 || agent.TaskIDs[0] != code.ID {
+		t.Fatalf("task ids should be de-duplicated, got %#v", agent.TaskIDs)
 	}
 }
 
@@ -186,10 +186,10 @@ func TestDeletingAgentClearsTaskReferences(t *testing.T) {
 	}
 }
 
-func TestDeletingTaskDetachesItFromAgentProjects(t *testing.T) {
+func TestDeletingTaskDetachesItFromAgentTasks(t *testing.T) {
 	app := newTestApp(t)
 	task := seedCodeTask(t, app, "代码任务", "code")
-	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Claude Code", Model: "Opus", ProjectIDs: []string{task.ID}, Available: true})
+	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Claude Code", Model: "Opus", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
@@ -200,8 +200,8 @@ func TestDeletingTaskDetachesItFromAgentProjects(t *testing.T) {
 	if len(listed) != 1 {
 		t.Fatalf("expected 1 agent, got %d", len(listed))
 	}
-	if len(listed[0].ProjectIDs) != 0 {
-		t.Fatalf("deleted task should be removed from the project list, got %#v", listed[0].ProjectIDs)
+	if len(listed[0].TaskIDs) != 0 {
+		t.Fatalf("deleted task should be removed from the task list, got %#v", listed[0].TaskIDs)
 	}
 	if listed[0].ID != agent.ID {
 		t.Fatalf("unexpected agent id %q", listed[0].ID)
@@ -227,14 +227,14 @@ func TestAgentPersistsAcrossReload(t *testing.T) {
 	if listed[0].Available || listed[0].ResetAt != reset {
 		t.Fatalf("availability and reset time should survive a reload, got %#v", listed[0])
 	}
-	if listed[0].ProjectIDs == nil {
-		t.Fatal("projectIds should serialise as an empty array, not null")
+	if listed[0].TaskIDs == nil {
+		t.Fatal("taskIds should serialise as an empty array, not null")
 	}
 }
 
-// ---------- unified relation: Agent.ProjectIDs mirrors Task.AgentID ----------
+// ---------- unified relation: Agent.TaskIDs mirrors Task.AgentID ----------
 
-func TestSelectingProjectAssignsTheTask(t *testing.T) {
+func TestSelectingTaskAssignsTheAgent(t *testing.T) {
 	app := newTestApp(t)
 	task := seedCodeTask(t, app, "代码任务", "code")
 	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Claude Code", Model: "Opus", Available: true})
@@ -242,31 +242,31 @@ func TestSelectingProjectAssignsTheTask(t *testing.T) {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
 
-	updated, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: "Claude Code", Model: "Opus", ProjectIDs: []string{task.ID}, Available: true})
+	updated, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: "Claude Code", Model: "Opus", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("UpdateAgentApp failed: %v", err)
 	}
-	if len(updated.ProjectIDs) != 1 || updated.ProjectIDs[0] != task.ID {
-		t.Fatalf("project list should hold the selected task, got %#v", updated.ProjectIDs)
+	if len(updated.TaskIDs) != 1 || updated.TaskIDs[0] != task.ID {
+		t.Fatalf("task list should hold the selected task, got %#v", updated.TaskIDs)
 	}
 	if got := app.ListTasks()[0].AgentID; got != agent.ID {
-		t.Fatalf("checking a project must point the task at this agent, got %q", got)
+		t.Fatalf("checking a task must point the task at this agent, got %q", got)
 	}
 
-	// Unchecking the project must detach the task again.
+	// Unchecking the task must detach the task again.
 	cleared, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: "Claude Code", Model: "Opus", Available: true})
 	if err != nil {
 		t.Fatalf("UpdateAgentApp failed: %v", err)
 	}
-	if len(cleared.ProjectIDs) != 0 {
-		t.Fatalf("project list should be empty, got %#v", cleared.ProjectIDs)
+	if len(cleared.TaskIDs) != 0 {
+		t.Fatalf("task list should be empty, got %#v", cleared.TaskIDs)
 	}
 	if got := app.ListTasks()[0].AgentID; got != "" {
-		t.Fatalf("unchecking a project must clear the task association, got %q", got)
+		t.Fatalf("unchecking a task must clear the task association, got %q", got)
 	}
 }
 
-func TestSelectingAgentOnTaskUpdatesAgentProjects(t *testing.T) {
+func TestSelectingAgentOnTaskUpdatesAgentTasks(t *testing.T) {
 	app := newTestApp(t)
 	first := seedCodeTask(t, app, "任务一", "code")
 	second := seedCodeTask(t, app, "任务二", "code")
@@ -287,7 +287,7 @@ func TestSelectingAgentOnTaskUpdatesAgentProjects(t *testing.T) {
 	if _, err = app.UpdateTask(second); err != nil {
 		t.Fatalf("UpdateTask failed: %v", err)
 	}
-	if got := agentProjects(t, app, alpha.ID); len(got) != 2 {
+	if got := agentTasksOf(t, app, alpha.ID); len(got) != 2 {
 		t.Fatalf("alpha should own both tasks, got %#v", got)
 	}
 
@@ -296,23 +296,23 @@ func TestSelectingAgentOnTaskUpdatesAgentProjects(t *testing.T) {
 	if _, err = app.UpdateTask(second); err != nil {
 		t.Fatalf("UpdateTask failed: %v", err)
 	}
-	if got := agentProjects(t, app, alpha.ID); len(got) != 1 || got[0] != first.ID {
+	if got := agentTasksOf(t, app, alpha.ID); len(got) != 1 || got[0] != first.ID {
 		t.Fatalf("alpha should keep only the first task, got %#v", got)
 	}
-	if got := agentProjects(t, app, beta.ID); len(got) != 1 || got[0] != second.ID {
+	if got := agentTasksOf(t, app, beta.ID); len(got) != 1 || got[0] != second.ID {
 		t.Fatalf("beta should own the second task, got %#v", got)
 	}
 }
 
-func TestSwitchingTaskTypeDetachesItFromAgentProjects(t *testing.T) {
+func TestSwitchingTaskTypeDetachesItFromAgentTasks(t *testing.T) {
 	app := newTestApp(t)
 	task := seedCodeTask(t, app, "代码任务", "code")
-	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Alpha", Model: "m1", ProjectIDs: []string{task.ID}, Available: true})
+	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Alpha", Model: "m1", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
-	if len(agent.ProjectIDs) != 1 {
-		t.Fatalf("the agent should list the task, got %#v", agent.ProjectIDs)
+	if len(agent.TaskIDs) != 1 {
+		t.Fatalf("the agent should list the task, got %#v", agent.TaskIDs)
 	}
 
 	task.TaskType = "document"
@@ -323,27 +323,27 @@ func TestSwitchingTaskTypeDetachesItFromAgentProjects(t *testing.T) {
 	if updated.AgentID != "" {
 		t.Fatalf("a non-code task must drop agentId, got %q", updated.AgentID)
 	}
-	if got := agentProjects(t, app, agent.ID); len(got) != 0 {
-		t.Fatalf("the task should leave the agent project list, got %#v", got)
+	if got := agentTasksOf(t, app, agent.ID); len(got) != 0 {
+		t.Fatalf("the task should leave the agent task list, got %#v", got)
 	}
 }
 
-func TestSharedProjectFallsBackToTaskSide(t *testing.T) {
+func TestSharedTaskFallsBackToTaskSide(t *testing.T) {
 	app := newTestApp(t)
 	task := seedCodeTask(t, app, "共享任务", "code")
-	alpha, err := app.CreateAgentApp(AgentAppInput{Name: "Alpha", Model: "m1", ProjectIDs: []string{task.ID}, Available: true})
+	alpha, err := app.CreateAgentApp(AgentAppInput{Name: "Alpha", Model: "m1", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
 	// A second Agent claiming the same task must not steal it from the task-side pointer.
-	beta, err := app.CreateAgentApp(AgentAppInput{Name: "Beta", Model: "m2", ProjectIDs: []string{task.ID}, Available: true})
+	beta, err := app.CreateAgentApp(AgentAppInput{Name: "Beta", Model: "m2", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
-	if got := agentProjects(t, app, alpha.ID); len(got) != 0 {
+	if got := agentTasksOf(t, app, alpha.ID); len(got) != 0 {
 		t.Fatalf("alpha should lose the task since beta claimed it last, got %#v", got)
 	}
-	if got := agentProjects(t, app, beta.ID); len(got) != 1 || got[0] != task.ID {
+	if got := agentTasksOf(t, app, beta.ID); len(got) != 1 || got[0] != task.ID {
 		t.Fatalf("beta should own the shared task, got %#v", got)
 	}
 	if got := app.ListTasks()[0].AgentID; got != beta.ID {
@@ -351,7 +351,7 @@ func TestSharedProjectFallsBackToTaskSide(t *testing.T) {
 	}
 }
 
-func TestLegacyProjectLinksAreRepairedOnLoad(t *testing.T) {
+func TestLegacyAgentSideLinksAreRepairedOnLoad(t *testing.T) {
 	app := newTestApp(t)
 	task := seedCodeTask(t, app, "Codex 关联的任务", "code")
 	other := seedCodeTask(t, app, "已有归属的任务", "code")
@@ -364,14 +364,14 @@ func TestLegacyProjectLinksAreRepairedOnLoad(t *testing.T) {
 		t.Fatalf("UpdateTask failed: %v", err)
 	}
 
-	// Reproduce the pre-unification file: an Agent lists projects that never reached the
+	// Reproduce the pre-unification file: an Agent lists tasks that never reached the
 	// tasks, while a task that already had an owner keeps its own pointer.
 	legacy := DataStore{
 		Units: app.units,
 		Tasks: app.tasks,
 		Agents: []AgentApp{
-			{ID: "codex", Name: "Codex", Model: "GPT", ProjectIDs: []string{task.ID, other.ID}, Available: true},
-			{ID: "owner", Name: "Owner", Model: "m", ProjectIDs: []string{other.ID}, Available: true},
+			{ID: "codex", Name: "Codex", Model: "GPT", TaskIDs: []string{task.ID, other.ID}, Available: true},
+			{ID: "owner", Name: "Owner", Model: "m", TaskIDs: []string{other.ID}, Available: true},
 		},
 	}
 	for i := range legacy.Tasks {
@@ -396,15 +396,15 @@ func TestLegacyProjectLinksAreRepairedOnLoad(t *testing.T) {
 		byID[item.ID] = item
 	}
 	if got := byID[task.ID].AgentID; got != "codex" {
-		t.Fatalf("the orphaned project should be attached to codex, got %q", got)
+		t.Fatalf("the orphaned task should be attached to codex, got %q", got)
 	}
 	if got := byID[other.ID].AgentID; got != "owner" {
 		t.Fatalf("an explicit task-side owner must not be overridden, got %q", got)
 	}
-	if got := agentProjects(t, reloaded, "codex"); len(got) != 1 || got[0] != task.ID {
+	if got := agentTasksOf(t, reloaded, "codex"); len(got) != 1 || got[0] != task.ID {
 		t.Fatalf("codex should own exactly the repaired task, got %#v", got)
 	}
-	if got := agentProjects(t, reloaded, "owner"); len(got) != 1 || got[0] != other.ID {
+	if got := agentTasksOf(t, reloaded, "owner"); len(got) != 1 || got[0] != other.ID {
 		t.Fatalf("owner should keep its task, got %#v", got)
 	}
 
@@ -414,8 +414,59 @@ func TestLegacyProjectLinksAreRepairedOnLoad(t *testing.T) {
 	if err = again.load(); err != nil {
 		t.Fatalf("second load failed: %v", err)
 	}
-	if got := agentProjects(t, again, "codex"); len(got) != 1 || got[0] != task.ID {
+	if got := agentTasksOf(t, again, "codex"); len(got) != 1 || got[0] != task.ID {
 		t.Fatalf("repair should be idempotent, got %#v", got)
+	}
+}
+
+// TestLoadMigratesLegacyProjectKey covers the 015 rename: a save written when the relation was
+// still called "projectIds" must keep its links, and the next save must write "taskIds" only.
+func TestLoadMigratesLegacyProjectKey(t *testing.T) {
+	app := newTestApp(t)
+	task := seedCodeTask(t, app, "写迁移前的存档", "code")
+	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Codex", Model: "GPT", TaskIDs: []string{task.ID}, Available: true})
+	if err != nil {
+		t.Fatalf("CreateAgentApp failed: %v", err)
+	}
+	detached := app.ListTasks()
+	for i := range detached {
+		detached[i].AgentID = ""
+	}
+	legacy := DataStore{Units: app.units, Tasks: detached, Agents: []AgentApp{{ID: agent.ID, Name: "Codex", Model: "GPT", TaskIDs: []string{task.ID}, Available: true}}}
+	raw, err := json.MarshalIndent(legacy, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	// Only the key name changes: this is exactly what a pre-015 file looked like.
+	raw = []byte(strings.ReplaceAll(string(raw), `"taskIds"`, `"projectIds"`))
+	if err = os.WriteFile(app.dataPath, raw, 0644); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+
+	reloaded := NewApp()
+	reloaded.dataPath = app.dataPath
+	if err = reloaded.load(); err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+	byID := map[string]Task{}
+	for _, item := range reloaded.ListTasks() {
+		byID[item.ID] = item
+	}
+	if got := byID[task.ID].AgentID; got != agent.ID {
+		t.Fatalf("the legacy projectIds link should survive the rename, got %q", got)
+	}
+	if got := agentTasksOf(t, reloaded, agent.ID); len(got) != 1 || got[0] != task.ID {
+		t.Fatalf("the rebuilt task list should hold the legacy link, got %#v", got)
+	}
+	persisted, err := os.ReadFile(app.dataPath)
+	if err != nil {
+		t.Fatalf("read back failed: %v", err)
+	}
+	if !strings.Contains(string(persisted), `"taskIds"`) {
+		t.Fatal("the migrated file should be saved under the taskIds key")
+	}
+	if strings.Contains(string(persisted), `"projectIds"`) {
+		t.Fatal("the deprecated projectIds key should not be written back")
 	}
 }
 
@@ -489,11 +540,11 @@ func captureNotifications(app *App) *[]string {
 	return messages
 }
 
-func agentProjects(t *testing.T, app *App, agentID string) []string {
+func agentTasksOf(t *testing.T, app *App, agentID string) []string {
 	t.Helper()
 	for _, agent := range app.ListAgentApps() {
 		if agent.ID == agentID {
-			return agent.ProjectIDs
+			return agent.TaskIDs
 		}
 	}
 	t.Fatalf("agent %s not found", agentID)

@@ -12,12 +12,12 @@ import (
 func seedAgentWithTask(t *testing.T, app *App) (AgentApp, Task) {
 	t.Helper()
 	task := seedCodeTask(t, app, "Claude 适配", "code")
-	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Codex", Model: "GPT-5", ProjectIDs: []string{task.ID}, Available: true})
+	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Codex", Model: "GPT-5", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("CreateAgentApp failed: %v", err)
 	}
-	if len(agent.ProjectIDs) != 1 {
-		t.Fatalf("the task should be attached on creation, got %#v", agent.ProjectIDs)
+	if len(agent.TaskIDs) != 1 {
+		t.Fatalf("the task should be attached on creation, got %#v", agent.TaskIDs)
 	}
 	return agent, task
 }
@@ -203,8 +203,8 @@ func TestUnlinkingATaskKeepsItsPrompts(t *testing.T) {
 		t.Fatalf("UpdateAgentApp failed: %v", err)
 	}
 	detached := app.ListAgentApps()
-	if len(detached[0].ProjectIDs) != 0 {
-		t.Fatalf("the task should be detached, got %#v", detached[0].ProjectIDs)
+	if len(detached[0].TaskIDs) != 0 {
+		t.Fatalf("the task should be detached, got %#v", detached[0].TaskIDs)
 	}
 	if len(detached[0].Prompts[task.ID]) != 1 {
 		t.Fatalf("prompts should survive unlinking, got %#v", detached[0].Prompts)
@@ -214,7 +214,7 @@ func TestUnlinkingATaskKeepsItsPrompts(t *testing.T) {
 	}
 
 	// Re-attaching it brings the prompts back.
-	if _, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: agent.Name, Model: agent.Model, ProjectIDs: []string{task.ID}, Available: true}); err != nil {
+	if _, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: agent.Name, Model: agent.Model, TaskIDs: []string{task.ID}, Available: true}); err != nil {
 		t.Fatalf("UpdateAgentApp failed: %v", err)
 	}
 	restored, err := app.ListAgentPrompts(agent.ID, task.ID)
@@ -233,7 +233,7 @@ func TestUpdateAgentAppLeavesPromptsAlone(t *testing.T) {
 		t.Fatalf("UpdateAgentPrompts failed: %v", err)
 	}
 
-	updated, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: "改名了", Model: "GPT-5.1", ProjectIDs: []string{task.ID}, Available: true})
+	updated, err := app.UpdateAgentApp(agent.ID, AgentAppInput{Name: "改名了", Model: "GPT-5.1", TaskIDs: []string{task.ID}, Available: true})
 	if err != nil {
 		t.Fatalf("UpdateAgentApp failed: %v", err)
 	}

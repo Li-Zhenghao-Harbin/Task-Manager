@@ -55,7 +55,7 @@ type AgentApp = {
   id: string
   name: string
   model: string
-  projectIds: string[]
+  taskIds: string[]
   prompts: Record<string, AgentPrompt[]>
   available: boolean
   resetAt: string
@@ -158,7 +158,7 @@ const draft = reactive({
   taskType: 'code' as TaskType,
   agentId: '',
 })
-const agentDraft = reactive({ name: '', model: '', projectIds: [] as string[], available: true, resetAt: '' })
+const agentDraft = reactive({ name: '', model: '', taskIds: [] as string[], available: true, resetAt: '' })
 const statusText: Record<Status, string> = { in_progress: '进行中', completed: '已完成', cancelled: '已取消' }
 const kindText: Record<Kind, string> = { main: '主线任务', branch: '支线任务', child: '子任务' }
 const outputLabels: Record<OutputKey, string> = {
@@ -176,8 +176,8 @@ const typeKeys: Record<TaskType, OutputKey[]> = {
   support: ['supports'],
 }
 
-// Agent applications: associated projects are tasks whose type is "code".
-const codeProjects = computed(() => tasks.value.filter((task) => task.taskType === 'code'))
+// Agent applications: attachable tasks are the ones whose type is "code".
+const codeTasks = computed(() => tasks.value.filter((task) => task.taskType === 'code'))
 function agentLabel(agent: { name: string; model: string }) {
   return `${agent.name}-${agent.model}`
 }
@@ -201,7 +201,7 @@ function candidateAgents(task: { agentId: string } | null) {
 }
 // 展开区按关联顺序列出任务对象；关联列表里指向已删除任务的项直接跳过。
 function agentTasks(agent: AgentApp) {
-  return agent.projectIds.map((id) => tasks.value.find((task) => task.id === id)).filter((task): task is Task => !!task)
+  return agent.taskIds.map((id) => tasks.value.find((task) => task.id === id)).filter((task): task is Task => !!task)
 }
 // 关联任务区默认展开：isAgentExpanded 的默认值是 true，收起才是被记录的状态。
 function isAgentExpanded(agent: AgentApp) {
@@ -229,7 +229,7 @@ function closePromptView() {
 const selectedAgentTask = computed(() => {
   const agent = selectedAgent.value
   const taskId = selectedAgentTaskId.value
-  if (!agent || !taskId || !agent.projectIds.includes(taskId)) return null
+  if (!agent || !taskId || !agent.taskIds.includes(taskId)) return null
   return tasks.value.find((task) => task.id === taskId) || null
 })
 function promptCount(agent: AgentApp, taskId: string) {
@@ -406,7 +406,7 @@ function normalizePrompts(value: any): Record<string, AgentPrompt[]> {
 function normalizeAgent(value: any): AgentApp {
   return {
     ...value,
-    projectIds: Array.isArray(value?.projectIds) ? value.projectIds.filter((id: any) => !!id) : [],
+    taskIds: Array.isArray(value?.taskIds) ? value.taskIds.filter((id: any) => !!id) : [],
     prompts: normalizePrompts(value?.prompts),
     available: !!value?.available,
     resetAt: value?.resetAt || '',
@@ -490,7 +490,7 @@ function resetDraft(parent?: Task) {
   })
 }
 function resetAgentDraft() {
-  Object.assign(agentDraft, { name: '', model: '', projectIds: [], available: true, resetAt: '' })
+  Object.assign(agentDraft, { name: '', model: '', taskIds: [], available: true, resetAt: '' })
 }
 function openAgentCreate() {
   resetAgentDraft()
@@ -539,7 +539,7 @@ async function changeStatus(value: Status) {
 }
 async function createAgent() {
   try {
-    const created = (await CreateAgentApp({ ...agentDraft, projectIds: [...agentDraft.projectIds] })) as any
+    const created = (await CreateAgentApp({ ...agentDraft, taskIds: [...agentDraft.taskIds] })) as any
     showAgentCreate.value = false
     await refresh()
     selectedAgent.value = agents.value.find((agent) => agent.id === created.id) || null
@@ -685,7 +685,7 @@ function agentPayload(agent: AgentApp) {
   return {
     name: agent.name,
     model: agent.model,
-    projectIds: [...agent.projectIds],
+    taskIds: [...agent.taskIds],
     available: agent.available,
     resetAt: agent.resetAt,
   }
@@ -841,20 +841,20 @@ async function copyPrompt(prompt: AgentPrompt) {
 
 // 任务侧是唯一事实来源，Agent 的项目列表只是它的视图，这里做同样的本地镜像，
 // 免得为了显示一致再跑一趟后端。
-function mirrorAgentProjects() {
+function mirrorAgentTasks() {
   for (const agent of agents.value) {
     const ids = tasks.value
       .filter((task) => task.taskType === 'code' && task.agentId === agent.id)
       .map((task) => task.id)
-    if (ids.join('|') === agent.projectIds.join('|')) continue
-    agent.projectIds = ids
+    if (ids.join('|') === agent.taskIds.join('|')) continue
+    agent.taskIds = ids
     markSaved(agent.id, agentPayload(agent))
   }
 }
 function mirrorTaskAgents(agent: AgentApp) {
   for (const task of tasks.value) {
     if (task.taskType !== 'code') continue
-    const next = agent.projectIds.includes(task.id) ? agent.id : task.agentId === agent.id ? '' : task.agentId
+    const next = agent.taskIds.includes(task.id) ? agent.id : task.agentId === agent.id ? '' : task.agentId
     if (next === task.agentId) continue
     task.agentId = next
     markSaved(task.id, taskPayload(task))
@@ -888,7 +888,7 @@ async function flushSaves() {
       Object.assign(task, saved)
       const row = tasks.value.find((item) => item.id === saved.id)
       if (row && row !== task) Object.assign(row, saved)
-      mirrorAgentProjects()
+      mirrorAgentTasks()
     }
     for (const agent of queuedAgents) {
       const issue = agentIssue(agent)
@@ -1257,7 +1257,7 @@ onMounted(() => {
                   <span class="agent-task-name">{{ task.name }}</span
                   ><em>{{ promptCount(agent, task.id) }} 条 Prompt</em>
                 </button>
-                <p v-if="!agentTasks(agent).length" class="hint">未关联任何代码任务，可在右侧「关联项目」中勾选。</p>
+                <p v-if="!agentTasks(agent).length" class="hint">未关联任何代码任务，可在右侧「关联任务」中勾选。</p>
               </div></template
             >
             <div v-if="!agents.length" class="empty">暂无 Agent 应用，点击右上角新增。</div>
@@ -1413,16 +1413,16 @@ onMounted(() => {
         <label v-if="!selectedAgent.available"
           >下次可用时间<input v-model="selectedAgent.resetAt" type="datetime-local"
         /></label>
-        <section class="agent-projects-editor">
-          <h3>关联项目</h3>
+        <section class="agent-tasks-editor">
+          <h3>关联任务</h3>
           <p class="hint">仅可选择任务类型为「代码」的任务</p>
-          <div class="agent-project-list">
-            <label v-for="task in codeProjects" :key="selectedAgent.id + ':' + task.id" class="agent-project-item"
-              ><input type="checkbox" :value="task.id" v-model="selectedAgent.projectIds" /><span>{{
+          <div class="agent-task-options">
+            <label v-for="task in codeTasks" :key="selectedAgent.id + ':' + task.id" class="agent-task-option"
+              ><input type="checkbox" :value="task.id" v-model="selectedAgent.taskIds" /><span>{{
                 task.name
               }}</span></label
             >
-            <p v-if="!codeProjects.length" class="hint">暂无可选的代码任务。</p>
+            <p v-if="!codeTasks.length" class="hint">暂无可选的代码任务。</p>
           </div>
         </section>
         <div class="detail-actions"><button class="delete-button" @click="deleteAgent">删除应用</button></div>
@@ -1512,16 +1512,16 @@ onMounted(() => {
           ><span><b>下次可用时间</b></span
           ><input v-model="agentDraft.resetAt" type="datetime-local"
         /></label>
-        <section class="agent-projects-editor">
-          <h3>关联项目</h3>
+        <section class="agent-tasks-editor">
+          <h3>关联任务</h3>
           <p class="hint">仅可选择任务类型为「代码」的任务</p>
-          <div class="agent-project-list">
-            <label v-for="task in codeProjects" :key="task.id" class="agent-project-item"
-              ><input type="checkbox" :value="task.id" v-model="agentDraft.projectIds" /><span>{{
+          <div class="agent-task-options">
+            <label v-for="task in codeTasks" :key="task.id" class="agent-task-option"
+              ><input type="checkbox" :value="task.id" v-model="agentDraft.taskIds" /><span>{{
                 task.name
               }}</span></label
             >
-            <p v-if="!codeProjects.length" class="hint">暂无可选的代码任务。</p>
+            <p v-if="!codeTasks.length" class="hint">暂无可选的代码任务。</p>
           </div>
         </section>
         <div class="actions">

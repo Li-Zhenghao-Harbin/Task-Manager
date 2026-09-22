@@ -4,7 +4,7 @@ export namespace main {
 	    id: string;
 	    name: string;
 	    model: string;
-	    projectIds: string[];
+	    taskIds: string[];
 	    available: boolean;
 	    resetAt: string;
 	    prompts: Record<string, Array<AgentPrompt>>;
@@ -20,7 +20,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.model = source["model"];
-	        this.projectIds = source["projectIds"];
+	        this.taskIds = source["taskIds"];
 	        this.available = source["available"];
 	        this.resetAt = source["resetAt"];
 	        this.prompts = this.convertValues(source["prompts"], Array<AgentPrompt>, true);
@@ -49,7 +49,7 @@ export namespace main {
 	export class AgentAppInput {
 	    name: string;
 	    model: string;
-	    projectIds: string[];
+	    taskIds: string[];
 	    available: boolean;
 	    resetAt: string;
 	
@@ -61,7 +61,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.model = source["model"];
-	        this.projectIds = source["projectIds"];
+	        this.taskIds = source["taskIds"];
 	        this.available = source["available"];
 	        this.resetAt = source["resetAt"];
 	    }

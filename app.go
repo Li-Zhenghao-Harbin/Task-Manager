@@ -66,17 +66,16 @@ type Unit struct {
 }
 
 // AgentApp registers one Agent application together with the model it runs.
-// Projects are existing tasks whose type is "code"; there is no separate project entity.
 //
-// ProjectIDs is a derived view, not an independent relation: it always mirrors the code
-// tasks whose AgentID points at this application (see syncAgentProjectsLocked). Task is the
+// TaskIDs is a derived view, not an independent relation: it always mirrors the code
+// tasks whose AgentID points at this application (see syncAgentTasksLocked). Task is the
 // single source of truth so both edit directions cannot drift apart.
 type AgentApp struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Model      string   `json:"model"`
-	ProjectIDs []string `json:"projectIds"`
-	Available  bool     `json:"available"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Model     string   `json:"model"`
+	TaskIDs   []string `json:"taskIds"`
+	Available bool     `json:"available"`
 	// ResetAt uses the datetime-local format (minute precision), e.g. "2026-09-21T17:30".
 	ResetAt string `json:"resetAt"`
 	// Prompts maps a task ID to the prompts written for it on this application: the same
@@ -96,18 +95,18 @@ type AgentPrompt struct {
 }
 
 type AgentAppInput struct {
-	Name       string   `json:"name"`
-	Model      string   `json:"model"`
-	ProjectIDs []string `json:"projectIds"`
-	Available  bool     `json:"available"`
-	ResetAt    string   `json:"resetAt"`
+	Name      string   `json:"name"`
+	Model     string   `json:"model"`
+	TaskIDs   []string `json:"taskIds"`
+	Available bool     `json:"available"`
+	ResetAt   string   `json:"resetAt"`
 }
 
 // agentResetLayout pins the minute precision used by the frontend datetime-local control.
 const agentResetLayout = "2006-01-02T15:04"
 
-// maxAgentProjects caps a single Agent application's project selection.
-const maxAgentProjects = 200
+// maxAgentTasks caps how many tasks one Agent application can be attached to.
+const maxAgentTasks = 200
 
 // maxPromptsPerPair caps how many prompts one (application, task) pair can hold.
 const maxPromptsPerPair = 50
@@ -368,9 +367,9 @@ func (a *App) ListAgentApps() []AgentApp {
 	items := make([]AgentApp, len(a.agents))
 	copy(items, a.agents)
 	for i := range items {
-		if items[i].ProjectIDs == nil {
-			// Keep projectIds as [] rather than null so the Vue list can iterate safely.
-			items[i].ProjectIDs = []string{}
+		if items[i].TaskIDs == nil {
+			// Keep taskIds as [] rather than null so the Vue list can iterate safely.
+			items[i].TaskIDs = []string{}
 		}
 		if items[i].Prompts == nil {
 			items[i].Prompts = map[string][]AgentPrompt{}
@@ -402,8 +401,8 @@ func (a *App) CreateAgentApp(input AgentAppInput) (AgentApp, error) {
 	}
 	a.agents = append(a.agents, agent)
 	// Seed the relation from the task side, then let the tasks own the resulting list.
-	a.assignAgentProjectsLocked(agent.ID, input.ProjectIDs)
-	a.syncAgentProjectsLocked()
+	a.assignAgentTasksLocked(agent.ID, input.TaskIDs)
+	a.syncAgentTasksLocked()
 	return a.agents[len(a.agents)-1], a.saveLocked()
 }
 
@@ -427,10 +426,10 @@ func (a *App) UpdateAgentApp(id string, input AgentAppInput) (AgentApp, error) {
 	}
 	updated.UpdatedAt = time.Now().Format(time.RFC3339)
 	a.agents[idx] = updated
-	// The submitted project list is a desired set: it reassigns or detaches tasks, and the
+	// The submitted task list is a desired set: it reassigns or detaches tasks, and the
 	// tasks then feed the rebuilt list back into every Agent.
-	a.assignAgentProjectsLocked(id, input.ProjectIDs)
-	a.syncAgentProjectsLocked()
+	a.assignAgentTasksLocked(id, input.TaskIDs)
+	a.syncAgentTasksLocked()
 	return a.agents[idx], a.saveLocked()
 }
 
@@ -451,7 +450,7 @@ func (a *App) DeleteAgentApp(id string) error {
 			a.tasks[i].UpdatedAt = now
 		}
 	}
-	a.syncAgentProjectsLocked()
+	a.syncAgentTasksLocked()
 	return a.saveLocked()
 }
 
@@ -466,8 +465,8 @@ func (a *App) agentIndexOf(id string) int {
 
 func (a *App) agentExistsLocked(id string) bool { return a.agentIndexOf(id) >= 0 }
 
-// normalizeProjectIDs removes blanks and duplicates while preserving the user's order.
-func (a *App) normalizeProjectIDs(ids []string) []string {
+// normalizeTaskIDs removes blanks and duplicates while preserving the user's order.
+func (a *App) normalizeTaskIDs(ids []string) []string {
 	result := make([]string, 0, len(ids))
 	seen := map[string]bool{}
 	for _, id := range ids {
@@ -477,7 +476,7 @@ func (a *App) normalizeProjectIDs(ids []string) []string {
 		}
 		seen[id] = true
 		result = append(result, id)
-		if len(result) >= maxAgentProjects {
+		if len(result) >= maxAgentTasks {
 			break
 		}
 	}
@@ -490,20 +489,20 @@ func (a *App) validateAgentLocked(input AgentAppInput) error {
 	}
 	if reset := strings.TrimSpace(input.ResetAt); reset != "" {
 		if _, err := time.ParseInLocation(agentResetLayout, reset, time.Local); err != nil {
-			return fmt.Errorf("下次重置时间格式无效")
+			return fmt.Errorf("下次可用时间格式无效")
 		}
 	}
-	for _, id := range a.normalizeProjectIDs(input.ProjectIDs) {
+	for _, id := range a.normalizeTaskIDs(input.TaskIDs) {
 		found := false
 		for i := range a.tasks {
-			// Associated projects must be tasks of type "code".
+			// Only tasks of type "code" can be attached to an Agent application.
 			if a.tasks[i].ID == id && a.tasks[i].TaskType == "code" {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("关联项目必须是代码类型的任务")
+			return fmt.Errorf("只能关联代码类型的任务")
 		}
 	}
 	return nil
@@ -687,9 +686,9 @@ func (a *App) UpdateAgentPrompts(agentID, taskID string, prompts []AgentPrompt) 
 
 // ---------- Agent / task relation ----------
 
-// syncAgentProjectsLocked rebuilds every Agent's project list from the tasks, which are the
+// syncAgentTasksLocked rebuilds every Agent's task list from the tasks, which are the
 // single source of truth for the relation. Returns whether anything changed.
-func (a *App) syncAgentProjectsLocked() bool {
+func (a *App) syncAgentTasksLocked() bool {
 	changed := false
 	now := time.Now().Format(time.RFC3339)
 	for i := range a.agents {
@@ -699,21 +698,21 @@ func (a *App) syncAgentProjectsLocked() bool {
 				ids = append(ids, a.tasks[j].ID)
 			}
 		}
-		if sameIDs(a.agents[i].ProjectIDs, ids) {
+		if sameIDs(a.agents[i].TaskIDs, ids) {
 			continue
 		}
-		a.agents[i].ProjectIDs = ids
+		a.agents[i].TaskIDs = ids
 		a.agents[i].UpdatedAt = now
 		changed = true
 	}
 	return changed
 }
 
-// assignAgentProjectsLocked treats ids as the desired project set of one Agent: listed code
+// assignAgentTasksLocked treats ids as the desired task set of one Agent: listed code
 // tasks are moved onto this Agent, code tasks that left the set are detached from it.
-func (a *App) assignAgentProjectsLocked(agentID string, ids []string) {
+func (a *App) assignAgentTasksLocked(agentID string, ids []string) {
 	wanted := map[string]bool{}
-	for _, id := range a.normalizeProjectIDs(ids) {
+	for _, id := range a.normalizeTaskIDs(ids) {
 		wanted[id] = true
 	}
 	for i := range a.tasks {
@@ -724,7 +723,7 @@ func (a *App) assignAgentProjectsLocked(agentID string, ids []string) {
 		case wanted[a.tasks[i].ID]:
 			a.tasks[i].AgentID = agentID
 		case a.tasks[i].AgentID == agentID:
-			// The task carrying the pointer decides; a project list that no longer holds it
+			// The task carrying the pointer decides; a task list that no longer holds it
 			// means the user unchecked it here.
 			a.tasks[i].AgentID = ""
 		}
@@ -732,14 +731,14 @@ func (a *App) assignAgentProjectsLocked(agentID string, ids []string) {
 }
 
 // repairAgentLinksLocked fixes data written before the relation was unified: an Agent could
-// list a project that never made it onto the task. Tasks that already point somewhere keep
-// their pointer, so the repair never overrides an explicit task-side choice. Idempotent.
+// list a task that never made it onto the task itself. Tasks that already point somewhere
+// keep their pointer, so the repair never overrides an explicit task-side choice. Idempotent.
 func (a *App) repairAgentLinksLocked() bool {
 	changed := false
 	for i := range a.agents {
-		for _, projectID := range a.agents[i].ProjectIDs {
+		for _, taskID := range a.agents[i].TaskIDs {
 			for j := range a.tasks {
-				if a.tasks[j].ID != projectID || a.tasks[j].TaskType != "code" {
+				if a.tasks[j].ID != taskID || a.tasks[j].TaskType != "code" {
 					continue
 				}
 				if a.tasks[j].AgentID == "" {
@@ -750,7 +749,7 @@ func (a *App) repairAgentLinksLocked() bool {
 			}
 		}
 	}
-	if a.syncAgentProjectsLocked() {
+	if a.syncAgentTasksLocked() {
 		changed = true
 	}
 	return changed
@@ -781,8 +780,8 @@ func (a *App) CreateTask(input TaskInput) (Task, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.tasks = append(a.tasks, task)
-	// Keep every Agent application's project list in step with the task side.
-	a.syncAgentProjectsLocked()
+	// Keep every Agent application's task list in step with the task side.
+	a.syncAgentTasksLocked()
 	return task, a.saveLocked()
 }
 
@@ -803,8 +802,8 @@ func (a *App) DeleteTask(id string) error {
 	for i := range a.agents {
 		delete(a.agents[i].Prompts, id)
 	}
-	// Detach the deleted task from every Agent application's project list by rebuilding them.
-	a.syncAgentProjectsLocked()
+	// Detach the deleted task from every Agent application's task list by rebuilding them.
+	a.syncAgentTasksLocked()
 	return a.saveLocked()
 }
 
@@ -857,8 +856,8 @@ func (a *App) UpdateTask(task Task) (Task, error) {
 		task.Output.Supports = 0
 	}
 	a.tasks[idx] = task
-	// An agentId change here moves the task between Agent project lists.
-	a.syncAgentProjectsLocked()
+	// An agentId change here moves the task between Agent task lists.
+	a.syncAgentTasksLocked()
 	return a.tasks[idx], a.saveLocked()
 }
 
@@ -975,14 +974,41 @@ func (a *App) load() error {
 		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
+	a.migrateAgentTaskIDsLocked(raw)
 	// Normalising prompts also drops keys whose task is no longer in the file.
 	prunedPrompts := a.normalizeAgentPromptsLocked()
-	// Data written before the relation was unified may hold an Agent-side project that never
+	// Data written before the relation was unified may hold an Agent-side task that never
 	// reached the task; repair it once here and persist so the two views agree from now on.
 	if a.repairAgentLinksLocked() || prunedPrompts {
 		_ = a.saveLocked()
 	}
 	return nil
+}
+
+// migrateAgentTaskIDsLocked lifts saves written before 015, when the Agent's task list was
+// called "projectIds". The deprecated key is read straight off the raw JSON instead of living
+// on AgentApp, so nothing can ever write it back: a file that only carries the old key keeps
+// its links, and the next save rewrites them under "taskIds". Files that already use the new
+// key are left untouched.
+func (a *App) migrateAgentTaskIDsLocked(raw []byte) {
+	var legacy struct {
+		Agents []struct {
+			ID      string   `json:"id"`
+			TaskIDs []string `json:"taskIds"`
+			// ProjectIDs is the pre-015 name of TaskIDs; it is only ever read here.
+			ProjectIDs []string `json:"projectIds"`
+		} `json:"agents"`
+	}
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return
+	}
+	for _, item := range legacy.Agents {
+		idx := a.agentIndexOf(item.ID)
+		if idx < 0 || len(item.ProjectIDs) == 0 || len(a.agents[idx].TaskIDs) > 0 {
+			continue
+		}
+		a.agents[idx].TaskIDs = append([]string{}, item.ProjectIDs...)
+	}
 }
 
 func isJSONArray(raw []byte) bool {
@@ -1066,6 +1092,8 @@ func (a *App) ImportData() error {
 		a.settings.BackgroundColor = "#f7faff"
 	}
 	a.migrateUnitsLocked()
+	// Imported files may still carry the pre-015 "projectIds" key.
+	a.migrateAgentTaskIDsLocked(raw)
 	a.normalizeAgentPromptsLocked()
 	// Imported files may come from the pre-unification format, so repair before persisting.
 	a.repairAgentLinksLocked()
