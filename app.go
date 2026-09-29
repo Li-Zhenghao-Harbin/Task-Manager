@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -173,6 +172,8 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.dataPath = filepath.Join(dir, "task-manager-data.json")
 	_ = a.load()
+	// The logon entry can be missing or stale even though the setting says it is on, so repair it.
+	a.restoreAutoStart()
 	// Restore Agent applications whose reset time passed while the app was closed, then
 	// keep watching so a reset that happens while the app runs also recovers and notifies.
 	a.checkAgentResets()
@@ -255,20 +256,16 @@ func (a *App) UpdateSettings(settings Settings) (Settings, error) {
 	return settings, a.saveLocked()
 }
 
-func setAutoStart(enabled bool) error {
-	const key = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-	if enabled {
-		exePath, err := os.Executable()
-		if err != nil {
-			return err
-		}
-		return exec.Command("reg", "add", key, "/v", "Task Manager", "/t", "REG_SZ", "/d", `"`+exePath+`"`, "/f").Run()
-	}
-	cmd := exec.Command("reg", "delete", key, "/v", "Task Manager", "/f")
-	if err := cmd.Run(); err != nil {
-		return nil
-	}
-	return nil
+// restoreAutoStart repairs the logon entry right after load. It matters when the setting says "on"
+// but the registry entry is missing (an earlier write was blocked or a cleanup tool removed it) or
+// still points at a previous location of the executable (the app keeps its data beside itself, so
+// users move it around). A failure here must not block startup — the settings dialog reports the
+// error the next time the switch is saved.
+func (a *App) restoreAutoStart() {
+	a.mu.RLock()
+	enabled := a.settings.AutoStart
+	a.mu.RUnlock()
+	_ = syncAutoStart(enabled)
 }
 
 func (a *App) CreateUnit(name string) (Unit, error) {

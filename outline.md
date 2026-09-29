@@ -312,3 +312,30 @@ agent_id          nullable string
 预览环境（纯静态页、无 Wails 绑定）里该方法可能是 `undefined`，调用会**同步**抛 `TypeError`，
 `.catch()` 接不住，前端要包 `try/catch`。
 
+## 10. Windows 系统集成
+
+### 10.1 开机自启（HKCU Run）
+
+设置里的「开机自动启动」对应注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 下
+名为 `Task Manager` 的 `REG_SZ` 值，数据是**带引号的 exe 绝对路径**（安装目录名含空格，必须加引号）。
+
+实现要点（018 重写，见 `autostart_windows.go` / `autostart_other.go` / `test`）：
+
+- **用注册表 API 直写，不走 `reg.exe` 子进程。** 子进程方案有三个问题：GUI 进程启动控制台程序会闪黑框
+  （012 已在通知上修过同类问题）；`exec.Command().Run()` 丢弃 stdout/stderr，失败只剩 `exit status 1`；
+  一旦 `reg.exe` 被安全策略拦掉，整条路径直接不可用。
+- **写后回读校验**：值与预期不符就返回错误（提示「可能被安全软件拦截」）。
+  静默失败会让设置显示「已开」而实际从不启动 —— 这是最难排查的状态，也是 018 要根除的。
+- **读不存在的值返回空串**（不报错，调用方才能区分「没设过」与「读失败」）；
+  **删除不存在的值视为成功**（开关从「开」拨到「关」时项可能本就不在）。
+- **启动自愈**：`startup()` 调用 `restoreAutoStart()`，在设置开着时检查注册表项是否存在**且指向当前 exe 路径**，
+  不一致就补写。覆盖两种现实情况：项缺失（早先写入被拦、或被清理工具删除）、项陈旧（程序被移动过）。
+  值一致时不写，正常启动零写入。
+- 自愈失败不阻塞启动（错误被丢弃）；用户下次在设置里保存开关时会看到明确错误。
+- 测试用独立值名 `TaskManagerAutostartProbe`，**不触碰用户真实依赖的那一项** ——
+  单元测试不该决定用户的程序是否跟着 Windows 启动。
+
+`settings.autoStart` 存在 `task-manager-data.json` 的 `settings` 里。
+它与注册表保持同一事实：`UpdateSettings` 在自启写入失败时整体中止且**不落盘**，
+以免设置停在「开」而注册表里什么都没有。
+
