@@ -1195,35 +1195,37 @@ onMounted(() => {
             </h1>
           </div>
         </header>
-        <div class="output-cards">
-          <article v-for="card in outputCards" :key="card.key" class="output-card">
-            <span>{{ card.label }}</span
-            ><strong>{{ card.value }}</strong
-            ><small>累计数量</small>
-          </article>
-        </div>
-        <section v-if="outputFilter === 'all'" class="chart-panel">
-          <h2>产出项目占比</h2>
-          <div class="pie-layout">
-            <div class="pie-chart" :style="pieStyle"></div>
-            <div class="pie-legend">
-              <div v-for="item in pieItems" :key="item.key">
-                <i :style="{ backgroundColor: item.color }"></i><span>{{ item.label }}</span
-                ><b>{{ item.value }}（{{ item.percent }}%）</b>
+        <div class="output-body">
+          <div class="output-cards">
+            <article v-for="card in outputCards" :key="card.key" class="output-card">
+              <span>{{ card.label }}</span
+              ><strong>{{ card.value }}</strong
+              ><small>累计数量</small>
+            </article>
+          </div>
+          <section v-if="outputFilter === 'all'" class="chart-panel">
+            <h2>产出项目占比</h2>
+            <div class="pie-layout">
+              <div class="pie-chart" :style="pieStyle"></div>
+              <div class="pie-legend">
+                <div v-for="item in pieItems" :key="item.key">
+                  <i :style="{ backgroundColor: item.color }"></i><span>{{ item.label }}</span
+                  ><b>{{ item.value }}（{{ item.percent }}%）</b>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-        <section v-else class="output-list">
-          <h2>对应任务</h2>
-          <button v-for="task in outputTasks" :key="task.id" class="output-task" @click="openTask(task)">
-            <span
-              ><b>{{ task.name }}</b
-              ><small>{{ task.unit }} · {{ task.issuer }} · {{ statusText[task.status] }}</small></span
-            ><em>{{ taskOutputText(task) }}</em>
-          </button>
-          <div v-if="!outputTasks.length" class="empty">暂无对应任务。</div>
-        </section>
+          </section>
+          <section v-else class="output-list">
+            <h2>对应任务</h2>
+            <button v-for="task in outputTasks" :key="task.id" class="output-task" @click="openTask(task)">
+              <span
+                ><b>{{ task.name }}</b
+                ><small>{{ task.unit }} · {{ task.issuer }} · {{ statusText[task.status] }}</small></span
+              ><em>{{ taskOutputText(task) }}</em>
+            </button>
+            <div v-if="!outputTasks.length" class="empty">暂无对应任务。</div>
+          </section>
+        </div>
       </div>
       <div v-else-if="section === 'agent'" class="agents-workspace">
         <header>
