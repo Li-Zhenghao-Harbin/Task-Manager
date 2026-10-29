@@ -164,6 +164,67 @@ func TestUnknownAgentIsRejected(t *testing.T) {
 	}
 }
 
+// 024: the association dropdown lists every application, so a task may be scheduled onto
+// an application that is currently offline. Only existence is validated — never
+// availability — otherwise the frontend change would fail at save time.
+func TestUnavailableAgentStillAttachesToTask(t *testing.T) {
+	app := newTestApp(t)
+	offline, err := app.CreateAgentApp(AgentAppInput{
+		Name:      "WorkBuddy",
+		Model:     "Hy",
+		Available: false,
+		ResetAt:   time.Now().Add(time.Hour).Format(agentResetLayout),
+	})
+	if err != nil {
+		t.Fatalf("CreateAgentApp failed: %v", err)
+	}
+	if offline.Available {
+		t.Fatal("an application with a future reset time should stay unavailable")
+	}
+
+	task, err := app.CreateTask(TaskInput{Name: "代码任务", Kind: "main", Issuer: "本人", Unit: "研发", PublishDate: "2026-09-01", DueDate: "2026-09-30", TaskType: "code", AgentID: offline.ID})
+	if err != nil {
+		t.Fatalf("an unavailable application should still be attachable: %v", err)
+	}
+	if task.AgentID != offline.ID {
+		t.Fatalf("task should keep the unavailable application, got %q", task.AgentID)
+	}
+
+	// The derived view has to follow, otherwise the task looks unattached on the Agent side.
+	var linked bool
+	for _, agent := range app.ListAgentApps() {
+		if agent.ID != offline.ID {
+			continue
+		}
+		if agent.Available {
+			t.Fatal("listing should not flip a still-future reset time back to available")
+		}
+		for _, id := range agent.TaskIDs {
+			if id == task.ID {
+				linked = true
+			}
+		}
+	}
+	if !linked {
+		t.Fatal("the unavailable application should list the attached task")
+	}
+
+	// Editing an existing task onto an offline application must work the same way.
+	other, err := app.CreateAgentApp(AgentAppInput{Name: "Codex", Model: "GPT", Available: false, ResetAt: time.Now().Add(2 * time.Hour).Format(agentResetLayout)})
+	if err != nil {
+		t.Fatalf("CreateAgentApp failed: %v", err)
+	}
+	moved := task
+	moved.AgentID = other.ID
+	updated, err := app.UpdateTask(moved)
+	if err != nil {
+		t.Fatalf("re-assigning an offline application should be accepted: %v", err)
+	}
+	if updated.AgentID != other.ID {
+		t.Fatalf("task should move to the other offline application, got %q", updated.AgentID)
+	}
+}
+
 func TestDeletingAgentClearsTaskReferences(t *testing.T) {
 	app := newTestApp(t)
 	agent, err := app.CreateAgentApp(AgentAppInput{Name: "Claude Code", Model: "Opus", Available: true})

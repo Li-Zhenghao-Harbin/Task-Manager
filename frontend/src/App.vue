@@ -191,16 +191,12 @@ function agentText(id: string) {
   const agent = agentById(id)
   return agent ? agentLabel(agent) : ''
 }
-// Only available Agents are selectable, plus the one already attached, so a task never
-// loses its association silently when that Agent goes offline.
-function candidateAgents(task: { agentId: string } | null) {
-  if (!task) return agents.value.filter((agent) => agent.available)
-  const list = agents.value.filter((agent) => agent.available)
-  if (task.agentId && !list.some((agent) => agent.id === task.agentId)) {
-    const current = agentById(task.agentId)
-    if (current) return [...list, current]
-  }
-  return list
+// 关联 Agent 的下拉一律列出全部 Agent（含不可用的），不可用的由模板加「（不可用）」后缀标注：
+// 任务可以先排给一个暂时下线的 Agent，等它恢复后直接开工，不必等它先变为可用。
+// 早先只列 available 的（外加「已关联的那一个」作为特例），结果新建任务时根本选不到不可用的
+// Agent；全量列表天然涵盖那条特例，也就不需要它了。
+function candidateAgents() {
+  return agents.value
 }
 // 展开区按关联顺序列出任务对象；关联列表里指向已删除任务的项直接跳过。
 function agentTasks(agent: AgentApp) {
@@ -1338,7 +1334,7 @@ onMounted(() => {
           ><label v-if="selected.taskType === 'code'" class="wide-field"
             >关联 Agent<select v-model="selected.agentId">
               <option value="">不关联</option>
-              <option v-for="agent in candidateAgents(selected)" :key="agent.id" :value="agent.id">
+              <option v-for="agent in candidateAgents()" :key="agent.id" :value="agent.id">
                 {{ agentLabel(agent) }}{{ agent.available ? '' : '（不可用）' }}
               </option>
             </select></label
@@ -1496,7 +1492,7 @@ onMounted(() => {
           ><label v-if="draft.taskType === 'code'" class="wide-field"
             >关联 Agent<select v-model="draft.agentId">
               <option value="">不关联</option>
-              <option v-for="agent in candidateAgents(draft)" :key="agent.id" :value="agent.id">
+              <option v-for="agent in candidateAgents()" :key="agent.id" :value="agent.id">
                 {{ agentLabel(agent) }}{{ agent.available ? '' : '（不可用）' }}
               </option>
             </select></label
