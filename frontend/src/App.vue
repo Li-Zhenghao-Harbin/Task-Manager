@@ -411,8 +411,13 @@ function normalizeAgent(value: any): AgentApp {
     resetAt: value?.resetAt || '',
   }
 }
+// 产出摘要只列**非零项**：0 的那一段连同分隔符一起不出现，避免「新增功能 0 | 修改功能 3」这种噪音。
+// 全部为 0 时返回空串，模板据此不渲染 <em>（右侧详情面板的输入框仍按 typeKeys 全量给，不为 0 隐藏）。
 function taskOutputText(task: Task) {
-  return typeKeys[task.taskType].map((key) => `${outputLabels[key]} ${task.output[key] || 0}`).join(' | ')
+  return typeKeys[task.taskType]
+    .filter((key) => (task.output[key] || 0) !== 0)
+    .map((key) => `${outputLabels[key]} ${task.output[key] || 0}`)
+    .join(' | ')
 }
 function setKind(target: { kind: Kind; parentId: string }, kind: Kind) {
   target.kind = kind
@@ -1217,7 +1222,7 @@ onMounted(() => {
               <span
                 ><b>{{ task.name }}</b
                 ><small>{{ task.unit }} · {{ task.issuer }} · {{ statusText[task.status] }}</small></span
-              ><em>{{ taskOutputText(task) }}</em>
+              ><em v-if="taskOutputText(task)">{{ taskOutputText(task) }}</em>
             </button>
             <div v-if="!outputTasks.length" class="empty">暂无对应任务。</div>
           </section>
