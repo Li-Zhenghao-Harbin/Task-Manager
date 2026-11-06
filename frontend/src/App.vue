@@ -1094,7 +1094,11 @@ onMounted(() => {
           <template v-for="group in taskGroups" :key="group.parent.id"
             ><button
               class="task-row"
-              :class="{ completed: group.parent.status === 'completed', context: group.context }"
+              :class="{
+                completed: group.parent.status === 'completed',
+                cancelled: group.parent.status === 'cancelled',
+                context: group.context,
+              }"
               @click="selected = group.parent"
               @contextmenu.prevent="showContextMenu(group.parent, $event)"
             >
@@ -1113,7 +1117,7 @@ onMounted(() => {
               v-for="child in group.children"
               :key="child.id"
               class="task-row child"
-              :class="{ completed: child.status === 'completed' }"
+              :class="{ completed: child.status === 'completed', cancelled: child.status === 'cancelled' }"
               @click="selected = child"
             >
               <span>↳</span
@@ -1132,7 +1136,7 @@ onMounted(() => {
             v-for="child in orphanChildren"
             :key="child.id"
             class="task-row child orphan-child"
-            :class="{ completed: child.status === 'completed' }"
+            :class="{ completed: child.status === 'completed', cancelled: child.status === 'cancelled' }"
             @click="selected = child"
           >
             <span>↳</span
