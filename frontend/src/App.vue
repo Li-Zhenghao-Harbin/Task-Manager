@@ -290,9 +290,15 @@ const orphanChildren = computed(() =>
     (child) => child.kind === 'child' && !tasks.value.some((task) => task.id === child.parentId),
   ),
 )
+// 「有产出」= 该类型关心的产出项（typeKeys）里任一非零，判据与 taskOutputText 同源，
+// 所以列表里不会出现「有这一行、摘要却是空的」。状态不参与筛选：完成了没记产出不该占位，
+// 记了产出但还在进行也该出现在这里（菜单计数和顶部卡片本来就是按全部任务算的）。
+function hasOutput(task: Task) {
+  return typeKeys[task.taskType].some((key) => (task.output[key] || 0) !== 0)
+}
 const outputTasks = computed(() =>
   tasks.value.filter(
-    (task) => task.status === 'completed' && (outputFilter.value === 'all' || task.taskType === outputFilter.value),
+    (task) => hasOutput(task) && (outputFilter.value === 'all' || task.taskType === outputFilter.value),
   ),
 )
 const outputTotals = computed(() =>
